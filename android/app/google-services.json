@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "50034881834",
+    "project_id": "mershed-661af",
+    "storage_bucket": "mershed-661af.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:50034881834:android:00c47c77c3f4489651da53",
+        "android_client_info": {
+          "package_name": "com.example.mershed"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBql7dkU-aWPkT-NS_BbhoC6svjEadm9k8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
