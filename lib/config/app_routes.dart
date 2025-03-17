@@ -9,6 +9,8 @@ import 'package:mershed/ui/screens/map_screen.dart';
 import 'package:mershed/ui/screens/signup_screen.dart';
 import 'package:mershed/ui/screens/trip_plan_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:mershed/ui/screens/preferences_screen.dart';
+import 'package:mershed/ui/screens/profile_screen.dart';
 class AppRoutes {
   static const String login = '/login';
   static const String home = '/home';
@@ -17,7 +19,9 @@ class AppRoutes {
   static const String booking = '/booking';
   static const String budget = '/budget';
   static const String forgotPassword = '/forgot-password';
-  static const String signup = '/signup'; // Added signup route
+  static const String signup = '/signup';
+  static const String preferences = '/preferences';
+  static const String profile = '/profile'; // Added profile route
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -37,6 +41,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case signup:
         return MaterialPageRoute(builder: (_) => const SignupScreen());
+      case preferences:
+        return MaterialPageRoute(builder: (_) => const PreferencesScreen());
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen()); // Added profile route
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(body: Center(child: Text('Route not found'))),
@@ -46,7 +54,6 @@ class AppRoutes {
 
   static Widget initialRoute(BuildContext context) {
     final authProvider = Provider.of<MershadAuthProvider>(context, listen: true);
-    // If user is authenticated or in guest mode, go to home; otherwise, go to login
     return authProvider.isAuthenticated || authProvider.isGuest ? const HomeScreen() : const LoginScreen();
   }
 
@@ -59,5 +66,7 @@ class AppRoutes {
     budget: (context) => const BudgetScreen(),
     forgotPassword: (context) => const ForgotPasswordScreen(),
     signup: (context) => const SignupScreen(),
+    preferences: (context) => const PreferencesScreen(),
+    profile: (context) => const ProfileScreen(), // Added profile route
   };
 }

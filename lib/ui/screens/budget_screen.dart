@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/core/providers/recommendation_provider.dart';
 import 'package:mershed/ui/widgets/recommendation_card.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -14,238 +14,232 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen> {
   final _budgetController = TextEditingController();
   final _destinationController = TextEditingController();
-  bool _isLoading = false;
+  bool _showResults = false;
+
+  Future<void> _fetchRecommendations() async {
+    if (_budgetController.text.isEmpty || _destinationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all fields'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final recommendationProvider = Provider.of<RecommendationProvider>(context, listen: false);
+      final authProvider = Provider.of<MershadAuthProvider>(context, listen: false);
+      await recommendationProvider.fetchRecommendations(
+        budget: double.parse(_budgetController.text),
+        destination: _destinationController.text,
+        userId: authProvider.user?.id,
+      );
+      if (mounted) {
+        setState(() {
+          _showResults = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('Firebase not initialized')
+                  ? 'App not initialized properly. Please restart the app.'
+                  : 'Error fetching recommendations: $e',
+              style: const TextStyle(fontSize: 16),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _fetchRecommendations,
+              textColor: Colors.white,
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final recommendationProvider = Provider.of<RecommendationProvider>(context);
     final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Budget Explorer',
-                style: TextStyle(
-                  color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/images/background.jpeg',
-                    fit: BoxFit.cover,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          theme.colorScheme.primary.withOpacity(0.7),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/background.jpeg'),
+                fit: BoxFit.cover,
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Card(
-                    elevation: 6,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                        color: Colors.white,
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Budget Explorer',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Where would you like to go?',
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 20),
-                          TextField(
-                            controller: _destinationController,
-                            decoration: InputDecoration(
-                              labelText: 'Destination',
-                              prefixIcon: const Icon(Icons.location_on_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: theme.colorScheme.surface,
+                          Card(
+                            elevation: 6,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            'What\'s your budget?',
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 20),
-                          TextField(
-                            controller: _budgetController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Budget (SAR)',
-                              prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
-                              suffixText: 'SAR',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: theme.colorScheme.surface,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: () async {
-                                if (_budgetController.text.isNotEmpty &&
-                                    _destinationController.text.isNotEmpty) {
-                                  setState(() {
-                                    _isLoading = true;
-                                  });
-
-                                  await recommendationProvider.fetchRecommendations(
-                                    double.parse(_budgetController.text),
-                                    _destinationController.text,
-                                  );
-
-                                  setState(() {
-                                    _isLoading = false;
-                                  });
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please fill in all fields'),
-                                      behavior: SnackBarBehavior.floating,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Where would you like to go?',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _destinationController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Destination',
+                                      prefixIcon: const Icon(Icons.location_on_outlined),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      filled: true,
+                                      fillColor: theme.colorScheme.surface,
                                     ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.primaryContainer,
-                                foregroundColor: theme.colorScheme.onPrimaryContainer,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                elevation: 4,
-                              ),
-                              child: _isLoading
-                                  ? const CircularProgressIndicator()
-                                  : const Text(
-                                'Find Budget Options',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'What\'s your budget?',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _budgetController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Budget (SAR)',
+                                      prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                                      suffixText: 'SAR',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      filled: true,
+                                      fillColor: theme.colorScheme.surface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: recommendationProvider.isLoading ? null : _fetchRecommendations,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: theme.colorScheme.primaryContainer,
+                                        foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        elevation: 4,
+                                      ),
+                                      child: recommendationProvider.isLoading
+                                          ? const CircularProgressIndicator()
+                                          : const Text(
+                                        'Find Budget Options',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
+                          if (_showResults)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Recommended Options',
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  if (recommendationProvider.recommendations.isEmpty)
+                                    Center(
+                                      child: Text(
+                                        'No recommendations available for this destination.',
+                                        style: theme.textTheme.bodyLarge?.copyWith(
+                                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: recommendationProvider.recommendations.length,
+                                      itemBuilder: (context, index) {
+                                        final rec = recommendationProvider.recommendations[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 16.0),
+                                          child: RecommendationCard(recommendation: rec),
+                                        );
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  if (recommendationProvider.recommendations.isNotEmpty)
-                    Text(
-                      'Recommended Options',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  if (recommendationProvider.recommendations.isEmpty && !_isLoading)
-                    _buildEmptyState(size, theme),
-                ],
-              ),
-            ),
-          ),
-          if (recommendationProvider.recommendations.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                    final rec = recommendationProvider.recommendations[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: RecommendationCard(recommendation: rec),
-                    );
-                  },
-                  childCount: recommendationProvider.recommendations.length,
                 ),
-              ),
+              ],
             ),
-          SliverToBoxAdapter(
-            child: SizedBox(height: 24),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Show budget tips or savings calculator
-          _showBudgetTipsDialog(context);
-        },
+        onPressed: () => _showBudgetTipsDialog(context),
         child: const Icon(Icons.lightbulb_outline),
         tooltip: 'Budget Tips',
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(Size size, ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 180,
-            width: 180,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(
-                Icons.explore,
-                size: 80,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Start your adventure',
-            style: theme.textTheme.headlineSmall,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Set your destination and budget to discover\nthe perfect travel options for you.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ),
     );
   }

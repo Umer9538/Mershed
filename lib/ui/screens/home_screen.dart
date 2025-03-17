@@ -451,6 +451,18 @@ class _HomeScreenState extends State<HomeScreen> {
               'View Profile',
                   () => Navigator.pop(context),
             ),
+            SizedBox(height: 20),
+            _buildProfileOption(
+              Icons.person,
+              'View Profile',
+                  () => Navigator.pushNamed(context, AppRoutes.profile), // Updated to navigate to ProfileScreen
+            ),
+            Divider(),
+            _buildProfileOption(
+              Icons.settings,
+              'Preferences', // Changed to 'Preferences' to navigate to PreferencesScreen
+                  () => Navigator.pushNamed(context, AppRoutes.preferences),
+            ),
             Divider(),
             _buildProfileOption(
               Icons.settings,
