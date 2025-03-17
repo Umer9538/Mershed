@@ -6,6 +6,7 @@ import 'package:mershed/ui/screens/booking_screen.dart';
 import 'package:mershed/ui/screens/map_screen.dart';
 import 'package:mershed/ui/screens/trip_plan_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:mershed/config/app_routes.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // User's profile picture could be fetched from provider in real app
-  final String _profileImage = 'assets/images/profile_placeholder.png';
+  final String _profileImage = 'assets/images/profile_placeholder.webp';
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         image: DecorationImage(
-          image: AssetImage('assets/images/featured_destination.jpg'),
+          image: AssetImage('assets/images/featured_destination.jpeg'),
           fit: BoxFit.cover,
         ),
         boxShadow: [
@@ -431,9 +432,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (context) => Container(
         padding: EdgeInsets.all(24),
-        height: 220,
+        // Removed fixed height to allow dynamic sizing
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Use min height to fit content
           children: [
             Text(
               'Profile Options',
@@ -459,10 +461,9 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildProfileOption(
               Icons.logout,
               'Sign Out',
-                  () async {
+                  () {
                 Navigator.pop(context);
-                await context.read<MershadAuthProvider>().signOut();
-                Navigator.pushReplacementNamed(context, '/login');
+                _confirmSignOut(context);
               },
             ),
           ],
@@ -470,6 +471,38 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  ///
+  void _confirmSignOut(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sign Out'),
+        content: Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await context.read<MershadAuthProvider>().signOut();
+                Navigator.pop(context); // Close the dialog
+                Navigator.pushReplacementNamed(context, AppRoutes.login); // Use AppRoutes
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error signing out: $e')),
+                );
+              }
+            },
+            child: Text('Sign Out', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+  ///
 
   Widget _buildProfileOption(IconData icon, String text, VoidCallback onTap) {
     return InkWell(

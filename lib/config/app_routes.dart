@@ -6,9 +6,9 @@ import 'package:mershed/ui/screens/forgot_password.dart';
 import 'package:mershed/ui/screens/home_screen.dart';
 import 'package:mershed/ui/screens/login_screen.dart';
 import 'package:mershed/ui/screens/map_screen.dart';
+import 'package:mershed/ui/screens/signup_screen.dart';
 import 'package:mershed/ui/screens/trip_plan_screen.dart';
 import 'package:provider/provider.dart';
-
 class AppRoutes {
   static const String login = '/login';
   static const String home = '/home';
@@ -17,6 +17,7 @@ class AppRoutes {
   static const String booking = '/booking';
   static const String budget = '/budget';
   static const String forgotPassword = '/forgot-password';
+  static const String signup = '/signup'; // Added signup route
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -34,19 +35,19 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const BudgetScreen());
       case forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
+      case signup:
+        return MaterialPageRoute(builder: (_) => const SignupScreen());
       default:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(
-            body: Center(child: Text('Route not found')),
-          ),
+          builder: (_) => const Scaffold(body: Center(child: Text('Route not found'))),
         );
     }
   }
 
   static Widget initialRoute(BuildContext context) {
     final authProvider = Provider.of<MershadAuthProvider>(context, listen: true);
-    // If user is authenticated, go to home; otherwise, go to login
-    return authProvider.user != null ? const HomeScreen() : const LoginScreen();
+    // If user is authenticated or in guest mode, go to home; otherwise, go to login
+    return authProvider.isAuthenticated || authProvider.isGuest ? const HomeScreen() : const LoginScreen();
   }
 
   static Map<String, WidgetBuilder> get routes => {
@@ -57,5 +58,6 @@ class AppRoutes {
     booking: (context) => const BookingScreen(),
     budget: (context) => const BudgetScreen(),
     forgotPassword: (context) => const ForgotPasswordScreen(),
+    signup: (context) => const SignupScreen(),
   };
 }

@@ -29,7 +29,8 @@ class _SignupScreenState extends State<SignupScreen> {
       try {
         bool success = await auth.signUpWithEmail(_emailController.text, _passwordController.text);
         if (success) {
-          Navigator.pushReplacementNamed(context, AppRoutes.home);
+          /*Navigator.pushReplacementNamed(context, AppRoutes.home);*/
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
         }
       } catch (e) {
         setState(() => _errorMessage = e.toString().split('] ')[1]);
