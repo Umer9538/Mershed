@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/ui/screens/budget_screen.dart';
 import 'package:mershed/ui/screens/booking_screen.dart';
+import 'package:mershed/ui/screens/CulturalInsightsScreen.dart';
 import 'package:mershed/ui/screens/map_screen.dart';
 import 'package:mershed/ui/screens/trip_plan_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:mershed/config/app_routes.dart';
+import 'navigation_transport_screen.dart';
+import 'chatbot_screen.dart'; // Added import for ChatbotScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -95,12 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         _buildMenuCard(
                           context,
-                          'Explore Map',
-                          Icons.explore,
+                          'Navigation & Transport',
+                          Icons.directions,
                           Colors.orange.shade700,
                               () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const MapScreen()),
+                            MaterialPageRoute(builder: (context) => const NavigationTransportScreen()),
                           ),
                         ),
                         _buildMenuCard(
@@ -121,6 +124,26 @@ class _HomeScreenState extends State<HomeScreen> {
                               () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const BudgetScreen()),
+                          ),
+                        ),
+                        _buildMenuCard(
+                          context,
+                          'Cultural Insights',
+                          Icons.info,
+                          Colors.red.shade700,
+                              () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const CulturalInsightsScreen()),
+                          ),
+                        ),
+                        _buildMenuCard(
+                          context,
+                          'Chatbot', // New card for Chatbot
+                          Icons.chat,
+                          Colors.teal.shade700, // Teal color for the chatbot card
+                              () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ChatbotScreen()),
                           ),
                         ),
                       ],
@@ -432,10 +455,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (context) => Container(
         padding: EdgeInsets.all(24),
-        // Removed fixed height to allow dynamic sizing
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // Use min height to fit content
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Profile Options',
@@ -449,18 +471,12 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildProfileOption(
               Icons.person,
               'View Profile',
-                  () => Navigator.pop(context),
-            ),
-            SizedBox(height: 20),
-            _buildProfileOption(
-              Icons.person,
-              'View Profile',
-                  () => Navigator.pushNamed(context, AppRoutes.profile), // Updated to navigate to ProfileScreen
+                  () => Navigator.pushNamed(context, AppRoutes.profile),
             ),
             Divider(),
             _buildProfileOption(
               Icons.settings,
-              'Preferences', // Changed to 'Preferences' to navigate to PreferencesScreen
+              'Preferences',
                   () => Navigator.pushNamed(context, AppRoutes.preferences),
             ),
             Divider(),
@@ -484,7 +500,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  ///
   void _confirmSignOut(BuildContext context) {
     showDialog(
       context: context,
@@ -501,7 +516,7 @@ class _HomeScreenState extends State<HomeScreen> {
               try {
                 await context.read<MershadAuthProvider>().signOut();
                 Navigator.pop(context); // Close the dialog
-                Navigator.pushReplacementNamed(context, AppRoutes.login); // Use AppRoutes
+                Navigator.pushReplacementNamed(context, AppRoutes.login);
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Error signing out: $e')),
@@ -514,7 +529,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  ///
 
   Widget _buildProfileOption(IconData icon, String text, VoidCallback onTap) {
     return InkWell(

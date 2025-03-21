@@ -1,3 +1,5 @@
+import 'package:mershed/core/models/recommendation.dart';
+
 class Trip {
   final String id;
   final String userId;
@@ -5,6 +7,7 @@ class Trip {
   final DateTime startDate;
   final DateTime endDate;
   final double budget;
+  final List<DailyItinerary>? itinerary; // Added for FR6
 
   Trip({
     required this.id,
@@ -13,8 +16,8 @@ class Trip {
     required this.startDate,
     required this.endDate,
     required this.budget,
+    this.itinerary,
   }) {
-    // Validation
     if (destination.trim().isEmpty) {
       throw ArgumentError('Destination cannot be empty');
     }
@@ -34,6 +37,9 @@ class Trip {
       startDate: DateTime.parse(json['startDate'] as String),
       endDate: DateTime.parse(json['endDate'] as String),
       budget: (json['budget'] as num).toDouble(),
+      itinerary: (json['itinerary'] as List<dynamic>?)
+          ?.map((item) => DailyItinerary.fromJson(item))
+          .toList(),
     );
   }
 
@@ -45,6 +51,7 @@ class Trip {
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'budget': budget,
+      'itinerary': itinerary?.map((day) => day.toJson()).toList() ?? [],
     };
   }
 
@@ -55,6 +62,7 @@ class Trip {
     DateTime? startDate,
     DateTime? endDate,
     double? budget,
+    List<DailyItinerary>? itinerary,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -63,6 +71,33 @@ class Trip {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       budget: budget ?? this.budget,
+      itinerary: itinerary ?? this.itinerary,
+    );
+  }
+}
+
+class DailyItinerary {
+  final DateTime date;
+  final List<Recommendation> activities;
+
+  DailyItinerary({
+    required this.date,
+    required this.activities,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'date': date.toIso8601String(),
+      'activities': activities.map((activity) => activity.toJson()).toList(),
+    };
+  }
+
+  factory DailyItinerary.fromJson(Map<String, dynamic> json) {
+    return DailyItinerary(
+      date: DateTime.parse(json['date']),
+      activities: (json['activities'] as List<dynamic>)
+          .map((item) => Recommendation.fromJson(item))
+          .toList(),
     );
   }
 }

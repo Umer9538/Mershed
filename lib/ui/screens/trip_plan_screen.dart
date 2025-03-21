@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/models/recommendation.dart';
+
 class TripPlanScreen extends StatefulWidget {
   const TripPlanScreen({super.key});
 
@@ -25,6 +27,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _showRecommendations = false;
+  List<DailyItinerary> _itinerary = [];
 
   void _saveTrip(MershadAuthProvider authProvider, TripProvider tripProvider, RecommendationProvider recProvider) async {
     if (!authProvider.isAuthenticated) {
@@ -43,6 +46,21 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     if (_formKey.currentState!.validate() && _startDate != null && _endDate != null) {
       setState(() => _isLoading = true);
       try {
+        // Fetch recommendations, including events from Eventbrite
+        await recProvider.fetchRecommendations(
+          budget: double.parse(_budgetController.text),
+          destination: _destinationController.text.trim(),
+          userId: authProvider.user!.id,
+          startDate: _startDate!, // Pass start date for event filtering
+          endDate: _endDate!,     // Pass end date for event filtering
+        );
+
+        _itinerary = _generateItinerary(
+          startDate: _startDate!,
+          endDate: _endDate!,
+          recommendations: recProvider.recommendations,
+        );
+
         final trip = Trip(
           id: const Uuid().v4(),
           userId: authProvider.user!.id,
@@ -50,18 +68,15 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
           startDate: _startDate!,
           endDate: _endDate!,
           budget: double.parse(_budgetController.text),
+          itinerary: _itinerary,
         );
+
         await tripProvider.addTrip(trip);
-        await recProvider.fetchRecommendations(
-          budget: trip.budget,
-          destination: trip.destination,
-          userId: authProvider.user!.id,
-        );
         if (mounted) {
           setState(() => _showRecommendations = true);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Trip to ${trip.destination} has been saved! Recommendations generated.'),
+              content: Text('Trip to ${trip.destination} has been saved with itinerary!'),
               backgroundColor: Theme.of(context).colorScheme.primary,
               behavior: SnackBarBehavior.floating,
             ),
@@ -90,12 +105,53 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     }
   }
 
+  List<DailyItinerary> _generateItinerary({
+    required DateTime startDate,
+    required DateTime endDate,
+    required List<Recommendation> recommendations,
+  }) {
+    List<DailyItinerary> itinerary = [];
+    final days = endDate.difference(startDate).inDays + 1;
+    final hotels = recommendations.where((rec) => rec.type == 'hotel').toList();
+    final activities = recommendations.where((rec) => rec.type == 'activity').toList();
+    final restaurants = recommendations.where((rec) => rec.type == 'restaurant').toList();
+    final events = recommendations.where((rec) => rec.type == 'event').toList();
+
+    for (int i = 0; i < days; i++) {
+      final day = startDate.add(Duration(days: i));
+      List<Recommendation> dailyPlan = [];
+
+      // Add one hotel per day (same hotel for the entire trip)
+      if (hotels.isNotEmpty) {
+        dailyPlan.add(hotels[0]);
+      }
+
+      // Add one activity per day
+      if (activities.isNotEmpty) {
+        dailyPlan.add(activities[i % activities.length]);
+      }
+
+      // Add one restaurant per day
+      if (restaurants.isNotEmpty) {
+        dailyPlan.add(restaurants[i % restaurants.length]);
+      }
+
+      // Add one event if available for the day
+      if (events.isNotEmpty) {
+        dailyPlan.add(events[i % events.length]);
+      }
+
+      itinerary.add(DailyItinerary(date: day, activities: dailyPlan));
+    }
+
+    return itinerary;
+  }
+
   List<String> _popularDestinations = [
     'Riyadh',
     'Jeddah',
-    'Dubai',
-    'Istanbul',
-    'London',
+    'Mecca',
+    'Medina',
   ];
 
   @override
@@ -281,6 +337,57 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                     ),
                   ),
                 ),
+              if (_showRecommendations && _itinerary.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your Itinerary',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_showRecommendations && _itinerary.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                        final day = _itinerary[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 16.0),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Day ${index + 1}: ${DateFormat('MMM d, yyyy').format(day.date)}',
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 8),
+                                ...day.activities.map((activity) => ListTile(
+                                  title: Text(activity.name),
+                                  subtitle: Text(activity.description),
+                                  trailing: Text('${activity.cost} SAR'),
+                                )),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                      childCount: _itinerary.length,
+                    ),
+                  ),
+                ),
               if (_showRecommendations && recommendationProvider.recommendations.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -314,7 +421,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
             controller: _destinationController,
             decoration: InputDecoration(
               labelText: 'Where would you like to go?',
-              hintText: 'Enter city or country',
+              hintText: 'Enter city (e.g., Riyadh, Jeddah)',
               prefixIcon: const Icon(Icons.location_on_outlined),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -330,7 +437,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Popular Destinations',
+            'Popular Destinations in Saudi Arabia',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -764,12 +871,10 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
       imagePath = 'assets/images/riyadh.jpeg';
     } else if (destination.contains('jeddah')) {
       imagePath = 'assets/images/jeddah.jpeg';
-    } else if (destination.contains('dubai')) {
-      imagePath = 'assets/images/dubai.jpg';
-    } else if (destination.contains('istanbul')) {
-      imagePath = 'assets/images/istanbul.jpg';
-    } else if (destination.contains('london')) {
-      imagePath = 'assets/images/london.jpg';
+    } else if (destination.contains('mecca')) {
+      imagePath = 'assets/images/mecca.jpg';
+    } else if (destination.contains('medina')) {
+      imagePath = 'assets/images/medina.jpg';
     }
 
     if (imagePath == null) return const SizedBox.shrink();
@@ -896,4 +1001,3 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     );
   }
 }
-

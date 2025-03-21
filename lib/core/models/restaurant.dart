@@ -1,15 +1,15 @@
-class Hotel {
+class Restaurant {
   final String id;
   final String name;
   final String location;
-  final double pricePerNight;
-  String? bookingId; // Added to track booking status
+  final double averageCostPerPerson;
+  String? bookingId;
 
-  Hotel({
+  Restaurant({
     required this.id,
     required this.name,
     required this.location,
-    required this.pricePerNight,
+    required this.averageCostPerPerson,
     this.bookingId,
   });
 
@@ -17,15 +17,15 @@ class Hotel {
     'id': id,
     'name': name,
     'location': location,
-    'pricePerNight': pricePerNight,
+    'averageCostPerPerson': averageCostPerPerson,
     'bookingId': bookingId,
   };
 
-  factory Hotel.fromMap(Map<String, dynamic> map) => Hotel(
+  factory Restaurant.fromMap(Map<String, dynamic> map) => Restaurant(
     id: map['id'],
     name: map['name'],
     location: map['location'],
-    pricePerNight: map['pricePerNight'],
+    averageCostPerPerson: map['averageCostPerPerson'],
     bookingId: map['bookingId'],
   );
 }

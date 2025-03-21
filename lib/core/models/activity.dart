@@ -1,15 +1,15 @@
-class Hotel {
+class Activity {
   final String id;
   final String name;
   final String location;
-  final double pricePerNight;
-  String? bookingId; // Added to track booking status
+  final double cost;
+  String? bookingId;
 
-  Hotel({
+  Activity({
     required this.id,
     required this.name,
     required this.location,
-    required this.pricePerNight,
+    required this.cost,
     this.bookingId,
   });
 
@@ -17,15 +17,15 @@ class Hotel {
     'id': id,
     'name': name,
     'location': location,
-    'pricePerNight': pricePerNight,
+    'cost': cost,
     'bookingId': bookingId,
   };
 
-  factory Hotel.fromMap(Map<String, dynamic> map) => Hotel(
+  factory Activity.fromMap(Map<String, dynamic> map) => Activity(
     id: map['id'],
     name: map['name'],
     location: map['location'],
-    pricePerNight: map['pricePerNight'],
+    cost: map['cost'],
     bookingId: map['bookingId'],
   );
 }
