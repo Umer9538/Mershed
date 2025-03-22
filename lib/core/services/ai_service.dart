@@ -8,62 +8,89 @@ class AiService {
   Future<List<Recommendation>> getRecommendations({
     required double budget,
     required String destination,
+    required String userId, // Added userId
     UserPreferences? preferences,
     required String season,
-    required List<String> events,
-    required String weather,
+    required String weatherCondition,
+    required DateTime startDate,
+    required DateTime endDate,
   }) async {
     return _fetchAiRecommendations(
       budget: budget,
       destination: destination,
+      userId: userId, // Pass userId
       preferences: preferences,
       season: season,
-      weather: weather,
-      events: events,
+      weatherCondition: weatherCondition,
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 
   Future<List<Recommendation>> _fetchAiRecommendations({
     required double budget,
     required String destination,
+    required String userId, // Added userId
     UserPreferences? preferences,
     required String season,
-    required String weather,
-    required List<String> events,
+    required String weatherCondition,
+    required DateTime startDate,
+    required DateTime endDate,
   }) async {
     final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-    print('Using Gemini API Key: $apiKey'); // Debug log
     if (apiKey.isEmpty) {
       print('Gemini API Key is missing in .env file');
       return _getFallbackRecommendations(
         budget: budget,
         destination: destination,
+        userId: userId, // Pass userId
         preferences: preferences,
         season: season,
-        weather: weather,
-        events: events,
+        weatherCondition: weatherCondition,
+        startDate: startDate,
+        endDate: endDate,
       );
     }
 
     final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey';
 
-    final prompt = '''
-You are a travel assistant specializing in Saudi Arabia. Provide personalized travel recommendations for a trip to $destination. Consider the following:
-- Budget: $budget SAR
-- Season: $season
-- Weather: $weather
-- Local Events: ${events.isNotEmpty ? events.join(", ") : "None"}
-- User Preferences: Interests: ${preferences?.interests.join(", ") ?? "General"}, Travel Style: ${preferences?.travelStyle ?? "Moderate"}
+    final tripDays = endDate.difference(startDate).inDays + 1;
+    final budgetPerDay = budget / tripDays;
 
-Suggest hotels, activities, and restaurants in $destination. Ensure the recommendations are budget-friendly and suitable for the season, weather, and events. Return exactly 3 recommendations (one hotel, one activity, and one restaurant) in the following JSON format. Ensure the JSON is complete, properly formatted, and includes all necessary closing brackets:
+    // Set default preferences if none provided
+    final defaultPreferences = preferences ?? UserPreferences(
+      interests: ['culture', 'nature'],
+      travelStyle: 'moderate', userId: '',
+    );
+
+    final prompt = '''
+You are a travel assistant specializing in Saudi Arabia. Provide personalized travel recommendations for a user with ID $userId for a trip to $destination from ${startDate.toIso8601String().substring(0, 10)} to ${endDate.toIso8601String().substring(0, 10)}. Consider the following:
+- Total Budget: $budget SAR for $tripDays days (approximately $budgetPerDay SAR per day)
+- Season: $season
+- Weather: $weatherCondition (e.g., Clouds)
+- User Preferences: Interests: ${defaultPreferences.interests.join(", ")}, Travel Style: ${defaultPreferences.travelStyle}
+
+Suggest recommendations for a $tripDays-day trip:
+- 1 hotel for the entire stay (~50% of budget, e.g., ${budget * 0.5} SAR total).
+- $tripDays unique activities (each ~${budget * 0.2 / tripDays} SAR per day).
+- $tripDays unique restaurants (each ~${budget * 0.15 / tripDays} SAR per day).
+- $tripDays unique local events (each ~${budget * 0.15 / tripDays} SAR per day).
+Ensure the recommendations are budget-friendly, suitable for the season, weather, and travel dates, and the total cost does not exceed $budget SAR. Adjust costs if necessary to fit the budget. Return the response in the following JSON format:
 {
   "recommendations": [
-    {"type": "hotel", "name": "Hotel Name", "description": "Description", "cost": 1000},
-    {"type": "activity", "name": "Activity Name", "description": "Description", "cost": 500},
-    {"type": "restaurant", "name": "Restaurant Name", "description": "Description", "cost": 200}
+    {"type": "hotel", "name": "Hotel Name", "description": "Description (for $tripDays nights)", "cost": 1000},
+    {"type": "activity", "name": "Activity 1", "description": "Description", "cost": 200},
+    {"type": "activity", "name": "Activity 2", "description": "Description", "cost": 200},
+    ...
+    {"type": "restaurant", "name": "Restaurant 1", "description": "Description", "cost": 150},
+    {"type": "restaurant", "name": "Restaurant 2", "description": "Description", "cost": 150},
+    ...
+    {"type": "event", "name": "Event 1", "description": "Event on ${startDate.toIso8601String().substring(0, 10)}", "cost": 150},
+    {"type": "event", "name": "Event 2", "description": "Event on ${startDate.add(Duration(days: 1)).toIso8601String().substring(0, 10)}", "cost": 150},
+    ...
   ]
 }
-Important: Return only the raw JSON object without any markdown formatting such as ```json or ```. The response must be a valid JSON string with no other text.
+Return only the raw JSON object without any markdown formatting.
 ''';
 
     final headers = {'Content-Type': 'application/json'};
@@ -77,56 +104,44 @@ Important: Return only the raw JSON object without any markdown formatting such 
       ],
       'generationConfig': {
         'temperature': 0.7,
-        'maxOutputTokens': 500,
+        'maxOutputTokens': 1000,
       },
     });
 
     try {
       final response = await http.post(Uri.parse(url), headers: headers, body: body);
       if (response.statusCode == 200) {
+        print('Gemini API success: ${response.body}');
         final data = jsonDecode(response.body);
         final content = data['candidates'][0]['content']['parts'][0]['text'];
-        print('Raw Gemini API Response: $content'); // Debug log
+        final jsonResponse = jsonDecode(content);
+        final recommendations = (jsonResponse['recommendations'] as List<dynamic>)
+            .map((item) => Recommendation.fromJson(item))
+            .toList();
 
-        // Extract JSON from Markdown code block (if present)
-        String jsonContent = content;
-        if (content.contains('```json')) {
-          // More robust extraction of JSON content from Markdown code blocks
-          final RegExp jsonBlockRegex = RegExp(r'```json\s*([\s\S]*?)\s*```');
-          final match = jsonBlockRegex.firstMatch(content);
-          if (match != null && match.groupCount >= 1) {
-            jsonContent = match.group(1)!.trim();
-          }
+        final totalCost = recommendations.fold<double>(0, (sum, rec) => sum + rec.cost);
+        if (totalCost > budget) {
+          print('Total cost ($totalCost SAR) exceeds budget ($budget SAR), scaling down');
+          return recommendations.map((rec) => Recommendation(
+            type: rec.type,
+            name: rec.name,
+            description: rec.description,
+            cost: rec.cost * (budget / totalCost),
+          )).toList();
         }
-
-        try {
-          // Check if the JSON is valid before parsing
-          final jsonResponse = jsonDecode(jsonContent);
-          final recommendations = (jsonResponse['recommendations'] as List<dynamic>)
-              .map((item) => Recommendation.fromJson(item))
-              .toList();
-          return recommendations.where((rec) => rec.cost <= budget).toList();
-        } catch (e) {
-          print('JSON parsing error: $e');
-          print('Attempted to parse: $jsonContent');
-          return _getFallbackRecommendations(
-            budget: budget,
-            destination: destination,
-            preferences: preferences,
-            season: season,
-            weather: weather,
-            events: events,
-          );
-        }
+        print('Total cost within budget: $totalCost SAR');
+        return recommendations;
       } else {
         print('Gemini API Error: ${response.statusCode}, ${response.body}');
         return _getFallbackRecommendations(
           budget: budget,
           destination: destination,
+          userId: userId, // Pass userId
           preferences: preferences,
           season: season,
-          weather: weather,
-          events: events,
+          weatherCondition: weatherCondition,
+          startDate: startDate,
+          endDate: endDate,
         );
       }
     } catch (e) {
@@ -134,10 +149,12 @@ Important: Return only the raw JSON object without any markdown formatting such 
       return _getFallbackRecommendations(
         budget: budget,
         destination: destination,
+        userId: userId, // Pass userId
         preferences: preferences,
         season: season,
-        weather: weather,
-        events: events,
+        weatherCondition: weatherCondition,
+        startDate: startDate,
+        endDate: endDate,
       );
     }
   }
@@ -145,213 +162,126 @@ Important: Return only the raw JSON object without any markdown formatting such 
   List<Recommendation> _getFallbackRecommendations({
     required double budget,
     required String destination,
+    required String userId, // Added userId
     UserPreferences? preferences,
     required String season,
-    required String weather,
-    required List<String> events,
+    required String weatherCondition,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
+    final tripDays = endDate.difference(startDate).inDays + 1;
+    final budgetPerDay = budget / tripDays;
+
+    // Default preferences
+    final defaultPreferences = preferences ?? UserPreferences(
+      interests: ['culture', 'nature'],
+      travelStyle: 'moderate', userId: '',
+    );
+
     final destinationData = {
       'riyadh': [
         Recommendation(
           type: 'hotel',
-          name: 'Four Seasons Hotel Riyadh',
-          description: 'A luxury hotel in the heart of Riyadh.',
-          cost: 1500,
+          name: 'Four Seasons Riyadh',
+          description: 'Luxury hotel for $tripDays nights',
+          cost: (budget * 0.5).clamp(1000, budget * 0.6),
         ),
-        Recommendation(
-          type: 'hotel',
-          name: 'Holiday Inn Riyadh',
-          description: 'A comfortable hotel for moderate budgets.',
-          cost: 600,
-        ),
-        Recommendation(
-          type: 'hotel',
-          name: 'Ibis Riyadh Olaya Street',
-          description: 'A budget-friendly hotel with good amenities.',
-          cost: 300,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Visit Kingdom Centre Tower',
-          description: 'Enjoy panoramic views of Riyadh from the Sky Bridge.',
-          cost: 70,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Explore Al Masmak Fortress',
-          description: 'Discover the history of Riyadh at this iconic fortress.',
-          cost: 0,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Food Tasting Tour in Riyadh',
-          description: 'Sample local Saudi cuisine on a guided food tour.',
-          cost: budget > 500 ? 200 : 100,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Desert Safari in Riyadh',
-          description: 'Experience an adventurous desert safari with dune bashing.',
-          cost: budget > 1000 ? 500 : 300,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'The Globe Restaurant',
-          description: 'Fine dining with a view at Kingdom Centre.',
-          cost: 200,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'Al Baik',
-          description: 'A popular fast-food chain for fried chicken.',
-          cost: 30,
-        ),
+        Recommendation(type: 'activity', name: 'Kingdom Centre Tour', description: 'Panoramic views', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Al Rajhi Grand Mosque', description: 'Cultural visit', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Diriyah Tour', description: 'Historical site', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'restaurant', name: 'The Globe', description: 'Fine dining', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Lusin', description: 'Armenian-Saudi fusion', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Nozomi', description: 'Japanese cuisine', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Riyadh Season Day 1', description: 'Cultural fest Day 1', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Riyadh Season Day 2', description: 'Cultural fest Day 2', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Riyadh Season Day 3', description: 'Cultural fest Day 3', cost: budget * 0.15 / tripDays),
       ],
       'jeddah': [
         Recommendation(
           type: 'hotel',
           name: 'Hilton Jeddah',
-          description: 'A family-friendly hotel with sea views.',
-          cost: 1000,
+          description: 'Sea-view hotel for $tripDays nights',
+          cost: (budget * 0.5).clamp(800, budget * 0.6),
         ),
-        Recommendation(
-          type: 'hotel',
-          name: 'Radisson Blu Jeddah',
-          description: 'A mid-range hotel with great amenities.',
-          cost: 700,
-        ),
-        Recommendation(
-          type: 'hotel',
-          name: 'Ibis Jeddah City Center',
-          description: 'A budget-friendly option in the city center.',
-          cost: 250,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Stroll Along Jeddah Corniche',
-          description: 'Enjoy a scenic walk along the Red Sea coast.',
-          cost: 0,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Visit Al-Balad',
-          description: 'Explore the historic old town of Jeddah.',
-          cost: 0,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Food Tasting Tour in Jeddah',
-          description: 'Taste traditional Saudi dishes in Jeddah.',
-          cost: budget > 500 ? 150 : 80,
-        ),
-        Recommendation(
-          type: 'activity',
-          name: 'Desert Safari in Jeddah',
-          description: 'An exciting desert adventure near Jeddah.',
-          cost: budget > 1000 ? 400 : 250,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'Al Nakheel Restaurant',
-          description: 'Authentic Saudi cuisine with a sea view.',
-          cost: 150,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'Khayal Restaurant',
-          description: 'A cozy spot for traditional Saudi meals.',
-          cost: 80,
-        ),
+        Recommendation(type: 'activity', name: 'Jeddah Corniche Walk', description: 'Scenic stroll', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Floating Mosque Visit', description: 'Architectural marvel', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Old Jeddah Tour', description: 'Historical exploration', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Al Nakheel', description: 'Saudi cuisine', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Byblos', description: 'Lebanese dining', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Sakura', description: 'Japanese fusion', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Jeddah Festival Day 1', description: 'Local fest Day 1', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Jeddah Festival Day 2', description: 'Local fest Day 2', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Jeddah Festival Day 3', description: 'Local fest Day 3', cost: budget * 0.15 / tripDays),
       ],
       'mecca': [
         Recommendation(
           type: 'hotel',
-          name: 'Pullman ZamZam Makkah',
-          description: 'A luxury hotel near the Holy Mosque.',
-          cost: 1200,
+          name: 'Pullman ZamZam',
+          description: 'Near Holy Mosque for $tripDays nights',
+          cost: (budget * 0.5).clamp(1000, budget * 0.6),
         ),
-        Recommendation(
-          type: 'activity',
-          name: 'Visit the Kaaba',
-          description: 'Experience the spiritual heart of Islam.',
-          cost: 0,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'Al Tazaj',
-          description: 'A popular spot for grilled chicken in Mecca.',
-          cost: 40,
-        ),
+        Recommendation(type: 'activity', name: 'Visit Kaaba', description: 'Spiritual experience', cost: 0),
+        Recommendation(type: 'activity', name: 'Jabal al-Nour Climb', description: 'Historical hike', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Mecca Museum', description: 'Cultural visit', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Al Tazaj', description: 'Grilled chicken', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Al Qasr', description: 'Local flavors', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Al Rajhi', description: 'Traditional meals', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Ramadan Retreat Day 1', description: 'Spiritual event Day 1', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Ramadan Retreat Day 2', description: 'Spiritual event Day 2', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Ramadan Retreat Day 3', description: 'Spiritual event Day 3', cost: budget * 0.15 / tripDays),
       ],
       'medina': [
         Recommendation(
           type: 'hotel',
           name: 'Madinah Hilton',
-          description: 'A comfortable hotel near the Prophets Mosque.',
-          cost: 900,
+          description: 'Near Prophet’s Mosque for $tripDays nights',
+          cost: (budget * 0.5).clamp(800, budget * 0.6),
         ),
-        Recommendation(
-          type: 'activity',
-          name: 'Visit the Prophets Mosque',
-          description: 'Pray and explore this sacred site.',
-          cost: 0,
-        ),
-        Recommendation(
-          type: 'restaurant',
-          name: 'Al Baik Medina',
-          description: 'Fast food with a local twist.',
-          cost: 30,
-        ),
+        Recommendation(type: 'activity', name: 'Prophet’s Mosque Visit', description: 'Sacred site', cost: 0),
+        Recommendation(type: 'activity', name: 'Quba Mosque Tour', description: 'Historical visit', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'activity', name: 'Uhud Mountain', description: 'Scenic exploration', cost: budget * 0.2 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Al Baik', description: 'Fast food', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'Abu Khalid', description: 'Local cuisine', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'restaurant', name: 'House of Grills', description: 'Grilled delights', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Medina Cultural Fest Day 1', description: 'Local event Day 1', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Medina Cultural Fest Day 2', description: 'Local event Day 2', cost: budget * 0.15 / tripDays),
+        Recommendation(type: 'event', name: 'Medina Cultural Fest Day 3', description: 'Local event Day 3', cost: budget * 0.15 / tripDays),
       ],
     };
 
     final cityKey = destination.toLowerCase();
-    final recommendations = destinationData.entries
-        .where((entry) => cityKey.contains(entry.key))
-        .map((entry) => entry.value)
-        .expand((element) => element)
-        .toList();
+    final allRecommendations = destinationData[cityKey] ?? [];
+    final recommendations = <Recommendation>[];
 
-    // If no recommendations are found for the destination, return an empty list
-    if (recommendations.isEmpty) {
-      print('No fallback recommendations available for $destination');
-      return [];
+    // Select one hotel
+    final hotel = allRecommendations.firstWhere((rec) => rec.type == 'hotel', orElse: () => Recommendation(type: 'hotel', name: 'Generic Hotel', description: 'Stay for $tripDays nights', cost: budget * 0.5));
+    recommendations.add(hotel);
+
+    // Select unique activities, restaurants, and events up to tripDays
+    final activities = allRecommendations.where((rec) => rec.type == 'activity').toList();
+    final restaurants = allRecommendations.where((rec) => rec.type == 'restaurant').toList();
+    final events = allRecommendations.where((rec) => rec.type == 'event').toList();
+
+    for (int i = 0; i < tripDays && i < activities.length; i++) {
+      recommendations.add(activities[i]);
+    }
+    for (int i = 0; i < tripDays && i < restaurants.length; i++) {
+      recommendations.add(restaurants[i]);
+    }
+    for (int i = 0; i < tripDays && i < events.length; i++) {
+      recommendations.add(events[i]);
     }
 
-    // Filter by travel style
-    final travelStyle = preferences?.travelStyle ?? 'Moderate';
-    final budgetRange = {
-      'Luxury': [1000, double.infinity],
-      'Moderate': [400, 1000],
-      'Budget': [0, 400],
-    };
-
-    final range = budgetRange[travelStyle] ?? [400, 1000];
-    var filteredRecommendations = recommendations.where((rec) {
-      if (rec.type == 'hotel') {
-        return rec.cost >= range[0] && rec.cost <= range[1];
-      }
-      return true;
-    }).toList();
-
-    // Filter by interests
-    final interests = preferences?.interests ?? [];
-    if (interests.contains('Food')) {
-      filteredRecommendations
-          .retainWhere((rec) => rec.type != 'activity' || rec.name.contains('Food'));
+    final totalCost = recommendations.fold<double>(0, (sum, rec) => sum + rec.cost);
+    if (totalCost > budget) {
+      print('Fallback total cost ($totalCost SAR) exceeds budget ($budget SAR), scaling down');
+      return recommendations.map((rec) => Recommendation(
+        type: rec.type,
+        name: rec.name,
+        description: rec.description,
+        cost: rec.cost * (budget / totalCost),
+      )).toList();
     }
-    if (interests.contains('Adventure')) {
-      filteredRecommendations
-          .retainWhere((rec) => rec.type != 'activity' || rec.name.contains('Safari'));
-    }
-
-    // Adjust for weather
-    if (weather == 'Rain' && season == 'Winter') {
-      filteredRecommendations
-          .retainWhere((rec) => rec.type != 'activity' || !rec.name.contains('Safari'));
-    }
-
-    // Filter by budget
-    return filteredRecommendations.where((rec) => rec.cost <= budget).toList();
+    return recommendations;
   }
 }

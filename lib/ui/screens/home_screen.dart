@@ -9,7 +9,7 @@ import 'package:mershed/ui/screens/trip_plan_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:mershed/config/app_routes.dart';
 import 'navigation_transport_screen.dart';
-import 'chatbot_screen.dart'; // Added import for ChatbotScreen
+import 'chatbot_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,37 +19,28 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // User's profile picture could be fetched from provider in real app
   final String _profileImage = 'assets/images/profile_placeholder.webp';
 
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
-    final primaryColor = Color(0xFFB94A2F); // Using the mushroom app primary color
-    final accentColor = Color(0xFF3C896D); // Forest green - nature related
-    final backgroundColor = Color(0xFFF7EFE4); // Light background
+    final primaryColor = Color(0xFFB94A2F);
+    final accentColor = Color(0xFF3C896D);
+    final backgroundColor = Color(0xFFF7EFE4);
+    final authProvider = Provider.of<MershadAuthProvider>(context);
 
     return Scaffold(
       backgroundColor: backgroundColor,
       body: Stack(
         children: [
-          // Top curved background
           _buildTopBackground(size, primaryColor),
-
-          // Main content
           SafeArea(
             child: Column(
               children: [
-                _buildHeader(context),
-
+                _buildHeader(context, authProvider),
                 SizedBox(height: 20),
-
-                // Featured destination card
                 _buildFeaturedDestination(size),
-
                 SizedBox(height: 20),
-
-                // Category Text
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Row(
@@ -73,10 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-
                 SizedBox(height: 20),
-
-                // Main menu grid
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
@@ -95,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const TripPlanScreen()),
                           ),
+                          enabled: true, // Available to all
                         ),
                         _buildMenuCard(
                           context,
@@ -105,26 +94,33 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const NavigationTransportScreen()),
                           ),
+                          enabled: true, // Available to all
                         ),
                         _buildMenuCard(
                           context,
                           'Find Hotels',
                           Icons.hotel,
                           Colors.purple.shade700,
-                              () => Navigator.push(
+                          authProvider.isAuthenticated
+                              ? () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const BookingScreen()),
-                          ),
+                          )
+                              : () => _showAuthRequiredDialog(context),
+                          enabled: authProvider.isAuthenticated,
                         ),
                         _buildMenuCard(
                           context,
                           'Budget',
                           Icons.account_balance_wallet,
                           Colors.green.shade700,
-                              () => Navigator.push(
+                          authProvider.isAuthenticated
+                              ? () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const BudgetScreen()),
-                          ),
+                          )
+                              : () => _showAuthRequiredDialog(context),
+                          enabled: authProvider.isAuthenticated,
                         ),
                         _buildMenuCard(
                           context,
@@ -135,25 +131,24 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const CulturalInsightsScreen()),
                           ),
+                          enabled: true, // Available to all
                         ),
                         _buildMenuCard(
                           context,
-                          'Chatbot', // New card for Chatbot
+                          'Chatbot',
                           Icons.chat,
-                          Colors.teal.shade700, // Teal color for the chatbot card
+                          Colors.teal.shade700,
                               () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const ChatbotScreen()),
                           ),
+                          enabled: true, // Available to all
                         ),
                       ],
                     ),
                   ),
                 ),
-
                 SizedBox(height: 10),
-
-                // Bottom navigation
                 _buildBottomNavigation(primaryColor),
               ],
             ),
@@ -176,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, MershadAuthProvider authProvider) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -194,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SizedBox(height: 4),
               Text(
-                'Explorer!', // Could be actual username
+                authProvider.isGuest ? 'Guest' : (authProvider.user?.name ?? 'Explorer!'),
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -250,7 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Stack(
         children: [
-          // Gradient overlay
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
@@ -264,8 +258,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
-          // Content
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
@@ -324,8 +316,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
-          // Explore button
           Positioned(
             top: 15,
             right: 15,
@@ -350,16 +340,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMenuCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildMenuCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap, {bool enabled = true}) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: enabled ? Colors.white : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.2),
+              color: color.withOpacity(enabled ? 0.2 : 0.1),
               offset: Offset(0, 4),
               blurRadius: 8,
             ),
@@ -371,12 +361,12 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(enabled ? 0.1 : 0.05),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                color: color,
+                color: enabled ? color : Colors.grey,
                 size: 32,
               ),
             ),
@@ -386,7 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.brown.shade800,
+                color: enabled ? Colors.brown.shade800 : Colors.grey,
               ),
             ),
           ],
@@ -448,6 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showProfileOptions(BuildContext context) {
+    final authProvider = Provider.of<MershadAuthProvider>(context, listen: false);
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
@@ -488,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Divider(),
             _buildProfileOption(
               Icons.logout,
-              'Sign Out',
+              authProvider.isGuest ? 'Exit Guest Mode' : 'Sign Out',
                   () {
                 Navigator.pop(context);
                 _confirmSignOut(context);
@@ -501,11 +492,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _confirmSignOut(BuildContext context) {
+    final authProvider = Provider.of<MershadAuthProvider>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Sign Out'),
-        content: Text('Are you sure you want to sign out?'),
+        title: Text(authProvider.isGuest ? 'Exit Guest Mode' : 'Sign Out'),
+        content: Text(authProvider.isGuest
+            ? 'Are you sure you want to exit guest mode?'
+            : 'Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -523,7 +517,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
             },
-            child: Text('Sign Out', style: TextStyle(color: Colors.red)),
+            child: Text(
+              authProvider.isGuest ? 'Exit' : 'Sign Out',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAuthRequiredDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Authentication Required'),
+        content: Text('Please sign in to access this feature.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, AppRoutes.login);
+            },
+            child: Text('Sign In', style: TextStyle(color: Color(0xFFB94A2F))),
           ),
         ],
       ),

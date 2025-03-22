@@ -4,7 +4,6 @@ import 'package:mershed/core/models/trip.dart';
 import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/core/providers/recommendation_provider.dart';
 import 'package:mershed/core/providers/trip_provider.dart';
-import 'package:mershed/ui/widgets/recommendation_card.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
@@ -46,14 +45,21 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     if (_formKey.currentState!.validate() && _startDate != null && _endDate != null) {
       setState(() => _isLoading = true);
       try {
-        // Fetch recommendations, including events from Eventbrite
+        final budget = double.parse(_budgetController.text);
+        print('Budget entered: $budget SAR');
+        print('Starting to fetch recommendations for ${authProvider.user!.id}...');
         await recProvider.fetchRecommendations(
-          budget: double.parse(_budgetController.text),
+          budget: budget,
           destination: _destinationController.text.trim(),
           userId: authProvider.user!.id,
-          startDate: _startDate!, // Pass start date for event filtering
-          endDate: _endDate!,     // Pass end date for event filtering
+          startDate: _startDate!,
+          endDate: _endDate!,
         );
+
+        print('Recommendations fetched: ${recProvider.recommendations.length} items');
+        recProvider.recommendations.forEach((rec) {
+          print('Recommendation: ${rec.type} - ${rec.name}, Cost: ${rec.cost} SAR');
+        });
 
         _itinerary = _generateItinerary(
           startDate: _startDate!,
@@ -61,17 +67,20 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
           recommendations: recProvider.recommendations,
         );
 
+        print('Itinerary generated with ${_itinerary.length} days');
+
         final trip = Trip(
           id: const Uuid().v4(),
           userId: authProvider.user!.id,
           destination: _destinationController.text.trim(),
           startDate: _startDate!,
           endDate: _endDate!,
-          budget: double.parse(_budgetController.text),
+          budget: budget,
           itinerary: _itinerary,
         );
 
         await tripProvider.addTrip(trip);
+        print('Trip saved: ${trip.id} - ${trip.destination}');
         if (mounted) {
           setState(() => _showRecommendations = true);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -83,6 +92,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
           );
         }
       } catch (e) {
+        print('Error during trip saving: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -96,6 +106,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         if (mounted) setState(() => _isLoading = false);
       }
     } else {
+      print('Validation failed or dates missing');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all required fields'),
@@ -112,33 +123,26 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }) {
     List<DailyItinerary> itinerary = [];
     final days = endDate.difference(startDate).inDays + 1;
-    final hotels = recommendations.where((rec) => rec.type == 'hotel').toList();
+
+    // Separate recommendations by type
+    final hotel = recommendations.firstWhere((rec) => rec.type == 'hotel', orElse: () => Recommendation(type: 'hotel', name: 'No Hotel', description: 'N/A', cost: 0));
     final activities = recommendations.where((rec) => rec.type == 'activity').toList();
     final restaurants = recommendations.where((rec) => rec.type == 'restaurant').toList();
     final events = recommendations.where((rec) => rec.type == 'event').toList();
 
     for (int i = 0; i < days; i++) {
       final day = startDate.add(Duration(days: i));
-      List<Recommendation> dailyPlan = [];
+      List<Recommendation> dailyPlan = [hotel]; // Hotel stays the same each day
 
-      // Add one hotel per day (same hotel for the entire trip)
-      if (hotels.isNotEmpty) {
-        dailyPlan.add(hotels[0]);
+      // Add unique activity, restaurant, and event for each day if available
+      if (i < activities.length) {
+        dailyPlan.add(activities[i]);
       }
-
-      // Add one activity per day
-      if (activities.isNotEmpty) {
-        dailyPlan.add(activities[i % activities.length]);
+      if (i < restaurants.length) {
+        dailyPlan.add(restaurants[i]);
       }
-
-      // Add one restaurant per day
-      if (restaurants.isNotEmpty) {
-        dailyPlan.add(restaurants[i % restaurants.length]);
-      }
-
-      // Add one event if available for the day
-      if (events.isNotEmpty) {
-        dailyPlan.add(events[i % events.length]);
+      if (i < events.length) {
+        dailyPlan.add(events[i]);
       }
 
       itinerary.add(DailyItinerary(date: day, activities: dailyPlan));
@@ -165,7 +169,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
       backgroundColor: theme.colorScheme.background,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Color(0xFFB94A2F),
         title: Text(
           'Create Your Journey',
           style: TextStyle(
@@ -306,85 +310,293 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
               if (_showRecommendations && recommendationProvider.recommendations.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Recommended Options for Your Trip',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Card(
+                      elevation: 4,
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16.0),
+                            color: theme.colorScheme.primary,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  color: theme.colorScheme.onPrimary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Curated Recommendations',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              if (_showRecommendations && recommendationProvider.recommendations.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                        final rec = recommendationProvider.recommendations[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: RecommendationCard(recommendation: rec),
-                        );
-                      },
-                      childCount: recommendationProvider.recommendations.length,
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            itemCount: recommendationProvider.recommendations.length,
+                            separatorBuilder: (context, index) => const Divider(),
+                            itemBuilder: (context, index) {
+                              final rec = recommendationProvider.recommendations[index];
+                              final IconData iconData = _getRecommendationIcon(rec.type);
+                              final Color iconColor = _getRecommendationColor(rec.type, theme);
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: iconColor.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        iconData,
+                                        color: iconColor,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  rec.name,
+                                                  style: theme.textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme.secondaryContainer,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  '${rec.cost.toStringAsFixed(0)} SAR',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                    color: theme.colorScheme.onSecondaryContainer,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            rec.description,
+                                            style: theme.textTheme.bodyMedium,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               if (_showRecommendations && _itinerary.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Your Itinerary',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              if (_showRecommendations && _itinerary.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                        final day = _itinerary[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 16.0),
-                          child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Card(
+                      elevation: 4,
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            color: theme.colorScheme.secondary,
+                            child: Row(
                               children: [
-                                Text(
-                                  'Day ${index + 1}: ${DateFormat('MMM d, yyyy').format(day.date)}',
-                                  style: theme.textTheme.titleLarge,
+                                Icon(
+                                  Icons.calendar_month_rounded,
+                                  color: theme.colorScheme.onSecondary,
                                 ),
-                                const SizedBox(height: 8),
-                                ...day.activities.map((activity) => ListTile(
-                                  title: Text(activity.name),
-                                  subtitle: Text(activity.description),
-                                  trailing: Text('${activity.cost} SAR'),
-                                )),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Your Personalized Itinerary',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSecondary,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                      childCount: _itinerary.length,
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              'Journey to ${_destinationController.text}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d, yyyy').format(_endDate!)} · ${_itinerary.length} ${_itinerary.length == 1 ? 'day' : 'days'}',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            itemCount: _itinerary.length,
+                            itemBuilder: (context, index) {
+                              final day = _itinerary[index];
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primaryContainer,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '${index + 1}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: theme.colorScheme.onPrimaryContainer,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Day ${index + 1}',
+                                              style: theme.textTheme.titleMedium?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              DateFormat('EEEE, MMM d').format(day.date),
+                                              style: theme.textTheme.bodyMedium?.copyWith(
+                                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ...day.activities.map((activity) {
+                                    final IconData iconData = _getRecommendationIcon(activity.type);
+                                    final Color iconColor = _getRecommendationColor(activity.type, theme);
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(width: 56), // Indent to align with day circle
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: iconColor.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              iconData,
+                                              color: iconColor,
+                                              size: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        activity.name,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      '${activity.cost.toStringAsFixed(0)} SAR',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 14,
+                                                        color: theme.colorScheme.onSurface.withOpacity(0.8),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                Text(
+                                                  activity.description,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  if (index < _itinerary.length - 1) const Divider(height: 32, indent: 16, endIndent: 16),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -999,5 +1211,40 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         ],
       ),
     );
+  }
+
+  // Helper methods for recommendation and itinerary display
+  IconData _getRecommendationIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'hotel':
+        return Icons.hotel;
+      case 'restaurant':
+        return Icons.restaurant;
+      case 'activity':
+        return Icons.local_activity;
+      case 'event':
+        return Icons.event;
+      case 'attraction':
+        return Icons.attractions;
+      default:
+        return Icons.place;
+    }
+  }
+
+  Color _getRecommendationColor(String type, ThemeData theme) {
+    switch (type.toLowerCase()) {
+      case 'hotel':
+        return Colors.indigo;
+      case 'restaurant':
+        return Colors.orange;
+      case 'activity':
+        return Colors.green;
+      case 'event':
+        return Colors.purple;
+      case 'attraction':
+        return Colors.teal;
+      default:
+        return theme.colorScheme.primary;
+    }
   }
 }

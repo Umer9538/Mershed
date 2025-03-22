@@ -40,9 +40,7 @@ class TripProvider with ChangeNotifier {
       _setLoading(true);
       await _tripService.updateTrip(trip);
       final index = _trips.indexWhere((t) => t.id == trip.id);
-      if (index != -1) {
-        _trips[index] = trip;
-      }
+      if (index != -1) _trips[index] = trip;
       _setLoading(false);
     } catch (e) {
       _setLoading(false);

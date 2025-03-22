@@ -13,9 +13,7 @@ class TripService {
           .collection(_collection)
           .where('userId', isEqualTo: userId)
           .get();
-      return snapshot.docs
-          .map((doc) => Trip.fromJson(doc.data()))
-          .toList();
+      return snapshot.docs.map((doc) => Trip.fromJson(doc.data())).toList();
     } catch (e) {
       print('Error fetching trips: $e');
       rethrow;
@@ -55,15 +53,14 @@ class TripService {
           .collection(_preferencesCollection)
           .doc(userId)
           .get();
-      if (snapshot.exists) {
-        return UserPreferences.fromJson(snapshot.data()!);
-      }
+      if (snapshot.exists) return UserPreferences.fromJson(snapshot.data()!);
       return null;
     } catch (e) {
       print('Error fetching user preferences: $e');
       return null;
     }
   }
+
   Future<void> deleteUserPreferences(String userId) async {
     try {
       await _firestore.collection(_preferencesCollection).doc(userId).delete();
@@ -72,6 +69,7 @@ class TripService {
       rethrow;
     }
   }
+
   Future<void> saveUserPreferences(UserPreferences preferences) async {
     try {
       await _firestore

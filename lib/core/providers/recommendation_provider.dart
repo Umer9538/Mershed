@@ -6,14 +6,12 @@ import 'package:mershed/core/models/recommendation.dart';
 import 'package:mershed/core/models/user_preferences.dart';
 import 'package:mershed/core/services/ai_service.dart';
 import 'package:mershed/core/services/trip_service.dart';
-import 'package:mershed/core/services/eventbrite_service.dart'; // Added EventbriteService
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 
 class RecommendationProvider with ChangeNotifier {
   final AiService _aiService = AiService();
   final TripService _tripService = TripService();
-  final EventbriteService _eventService = EventbriteService(); // Added EventbriteService
   List<Recommendation> _recommendations = [];
   bool _isLoading = false;
 
@@ -24,8 +22,8 @@ class RecommendationProvider with ChangeNotifier {
     required double budget,
     required String destination,
     String? userId,
-    required DateTime startDate, // Added startDate parameter
-    required DateTime endDate,   // Added endDate parameter
+    required DateTime startDate,
+    required DateTime endDate,
   }) async {
     if (Firebase.apps.isEmpty) {
       throw Exception('Firebase not initialized. Please restart the app.');
@@ -33,39 +31,25 @@ class RecommendationProvider with ChangeNotifier {
 
     setLoading(true);
     try {
-      UserPreferences? preferences = userId != null
-          ? await _tripService.fetchUserPreferences(userId)
-          : null;
+      UserPreferences? preferences =
+      userId != null ? await _tripService.fetchUserPreferences(userId) : null;
 
       print('Fetched preferences for user $userId: ${preferences?.toJson()}');
 
-      String currentSeason = await _getCurrentSeason(startDate); // Updated to use startDate
-      List<String> localEvents = await _fetchLocalEvents(
-        destination,
-        startDate,
-        endDate,
-      ); // Updated to pass startDate and endDate
+      String currentSeason = await _getCurrentSeason(startDate);
       String weatherCondition = await _fetchWeatherCondition(destination);
 
-      print('Season: $currentSeason, Events: $localEvents, Weather: $weatherCondition');
+      print('Season: $currentSeason, Weather: $weatherCondition');
 
-      // Fetch AI recommendations
       _recommendations = await _aiService.getRecommendations(
         budget: budget,
         destination: destination,
         preferences: preferences,
         season: currentSeason,
-        events: localEvents,
-        weather: weatherCondition,
+        weatherCondition: weatherCondition, // Pass weather
+        startDate: startDate,
+        endDate: endDate, userId: '',
       );
-
-      // Add events as recommendations
-      _recommendations.addAll(localEvents.map((event) => Recommendation(
-        type: 'event',
-        name: event,
-        description: 'A local event in $destination.',
-        cost: 0, // Events may not have a cost; adjust as needed
-      )));
 
       notifyListeners();
     } catch (e) {
@@ -77,81 +61,21 @@ class RecommendationProvider with ChangeNotifier {
       setLoading(false);
     }
   }
-
   void setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
   }
 
   Future<String> _getCurrentSeason(DateTime date) async {
-    final month = date.month; // Use the trip's start date to determine the season
+    final month = date.month;
     if ([12, 1, 2].contains(month)) return 'Winter';
     if ([3, 4, 5].contains(month)) return 'Spring';
     if ([6, 7, 8].contains(month)) return 'Summer';
     return 'Autumn';
   }
 
-  Future<List<String>> _fetchLocalEvents(
-      String destination,
-      DateTime startDate,
-      DateTime endDate,
-      ) async {
-    final cityCoordinates = {
-      'jeddah': {'lat': 21.5169, 'lon': 39.2191},
-      'riyadh': {'lat': 24.7136, 'lon': 46.6753},
-      'mecca': {'lat': 21.4266, 'lon': 39.8256},
-      'medina': {'lat': 24.5247, 'lon': 39.5692},
-    };
-    final coords = cityCoordinates[destination.toLowerCase()] ?? {'lat': 21.5169, 'lon': 39.2191};
-
-    try {
-      final events = await _eventService.fetchEvents(
-        city: destination,
-        lat: coords['lat']!,
-        lon: coords['lon']!,
-        startDate: startDate,
-        endDate: endDate,
-      );
-      return events.isNotEmpty ? events.take(3).toList() : ['No events available'];
-    } catch (e) {
-      print('Error fetching events from Eventbrite: $e');
-      return _getMockEvents(destination);
-    }
-  }
-
-  List<String> _getMockEvents(String destination) {
-    final mockEvents = {
-      'riyadh': [
-        'Riyadh Season 2025 (March 2025)',
-        'Riyadh Food Festival (April 2025)',
-        'Cultural Exhibition at Kingdom Centre (March 20-25, 2025)',
-      ],
-      'jeddah': [
-        'Jeddah Festival 2025 (April 2025)',
-        'Red Sea Film Festival (December 2025)',
-        'Jeddah Art Fair (March 22-28, 2025)',
-      ],
-      'mecca': [
-        'Islamic Heritage Exhibition (March 2025)',
-        'Ramadan Spiritual Retreat (March 2025)',
-      ],
-      'medina': [
-        'Medina Cultural Festival (April 2025)',
-        'Prophet’s Mosque Tour (Ongoing)',
-      ],
-    };
-
-    final cityKey = destination.toLowerCase();
-    return mockEvents.entries
-        .where((entry) => cityKey.contains(entry.key))
-        .map((entry) => entry.value)
-        .expand((element) => element)
-        .take(3)
-        .toList();
-  }
-
   Future<String> _fetchWeatherCondition(String destination) async {
-    final apiKey = dotenv.env['OPENWEATHERMAP_API_KEY'] ?? '7556a9c69d94241807167c755a875fb1';
+    final apiKey = dotenv.env['OPENWEATHERMAP_API_KEY'] ?? '7556c9c69d94241807167c755a875fb1';
     final url = 'https://api.openweathermap.org/data/2.5/weather?q=$destination&appid=$apiKey&units=metric';
     try {
       final response = await http.get(Uri.parse(url));
@@ -170,7 +94,6 @@ class RecommendationProvider with ChangeNotifier {
     }
   }
 }
-
 
 
 

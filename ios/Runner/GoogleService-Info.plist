@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>50034881834-b3d7du2o8q50qo8jihpakl92hlrmaqkb.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.50034881834-b3d7du2o8q50qo8jihpakl92hlrmaqkb</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>50034881834-lsat348vhsbbipeqlf49vqfbuu9t1jav.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBI-52e5caonw1mQxTiYyuaOyUB3kTnbiM</string>
+	<key>GCM_SENDER_ID</key>
+	<string>50034881834</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.mershed</string>
+	<key>PROJECT_ID</key>
+	<string>mershed-661af</string>
+	<key>STORAGE_BUCKET</key>
+	<string>mershed-661af.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:50034881834:ios:deff3bbdf679104051da53</string>
+</dict>
+</plist>

@@ -7,7 +7,7 @@ class Trip {
   final DateTime startDate;
   final DateTime endDate;
   final double budget;
-  final List<DailyItinerary>? itinerary; // Added for FR6
+  final List<DailyItinerary>? itinerary;
 
   Trip({
     required this.id,
@@ -18,15 +18,9 @@ class Trip {
     required this.budget,
     this.itinerary,
   }) {
-    if (destination.trim().isEmpty) {
-      throw ArgumentError('Destination cannot be empty');
-    }
-    if (startDate.isAfter(endDate)) {
-      throw ArgumentError('Start date must be before end date');
-    }
-    if (budget < 0) {
-      throw ArgumentError('Budget cannot be negative');
-    }
+    if (destination.trim().isEmpty) throw ArgumentError('Destination cannot be empty');
+    if (startDate.isAfter(endDate)) throw ArgumentError('Start date must be before end date');
+    if (budget < 0) throw ArgumentError('Budget cannot be negative');
   }
 
   factory Trip.fromJson(Map<String, dynamic> json) {
