@@ -1,10 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:label="mershed"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true"> <!-- Added this line -->
+        android:enableOnBackInvokedCallback="true">
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCtKv2abGlAfDL28ArTsQ6Yc0dYePbx-ro"/>
+        <meta-data
+            android:name="com.google.android.maps.v2.MAP_ID"
+            android:value="99a6a0ae6dd647a2" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,104 +1,97 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import 'package:mershed/core/models/hotel.dart';
-import 'package:mershed/core/models/restaurant.dart';
-import 'package:mershed/core/models/activity.dart';
-import 'package:mershed/core/booking_category.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class BookingService {
-  final String _amadeusBaseUrl = 'https://api.amadeus.com'; // Updated to production URL
+  final String _rapidApiKey = 'ce933af03amshabbc6a35511223dp1a748djsn095433b0ec40';
+  final String _rapidApiHost = 'hotels-com-provider.p.rapidapi.com';
+  final String _rapidApiBaseUrl = 'https://hotels-com-provider.p.rapidapi.com';
+  String _selectedDomain = 'CN';
+  String _selectedLocale = 'en_US';
+
   final CollectionReference _bookingsCollection =
   FirebaseFirestore.instance.collection('bookings');
 
-  // Load Amadeus credentials from .env
-  String get _amadeusApiKey => dotenv.env['AMADEUS_API_KEY'] ?? '';
-  String get _amadeusApiSecret => dotenv.env['AMADEUS_API_SECRET'] ?? '';
-
-  // City name to IATA code mapping for Saudi Arabia
-  final Map<String, String> _cityToIataCode = {
-    'riyadh': 'RUH',
-    'jeddah': 'JED',
-    'mecca': 'MKK',
-    'medina': 'MED',
-    'dammam': 'DMM',
-    'abha': 'AHB',
-  };
-
-  // Convert city name to IATA code
-  String _getIataCode(String city) {
-    String normalizedCity = city.toLowerCase().trim();
-    return _cityToIataCode[normalizedCity] ?? city.toUpperCase();
-  }
-
-  // Get Amadeus access token
-  Future<String> _getAmadeusToken() async {
-    if (_amadeusApiKey.isEmpty || _amadeusApiSecret.isEmpty) {
-      throw Exception('Amadeus API credentials are missing in .env file');
-    }
-
-    print('Using AMADEUS_API_KEY: $_amadeusApiKey'); // Debugging
-    print('Using AMADEUS_API_SECRET: $_amadeusApiSecret'); // Debugging
-
-    final response = await http.post(
-      Uri.parse('$_amadeusBaseUrl/v1/security/oauth2/token'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body:
-      'grant_type=client_credentials&client_id=$_amadeusApiKey&client_secret=$_amadeusApiSecret',
-    );
-    print('Token request response: ${response.statusCode} - ${response.body}');
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['access_token'];
-    } else {
-      throw Exception('Failed to get Amadeus token: ${response.body}');
-    }
-  }
-
-  // Fetch hotels using Amadeus API
+  // Fetch hotels using Hotels.com Provider API
   Future<List<Hotel>> getHotels(String destination,
       {DateTime? checkInDate, DateTime? checkOutDate}) async {
     try {
-      final token = await _getAmadeusToken();
       final checkIn = checkInDate ?? DateTime.now().add(Duration(days: 1));
       final checkOut = checkOutDate ?? checkIn.add(Duration(days: 1));
 
-      // Validate check-in and check-out dates
       if (checkOut.isBefore(checkIn) || checkOut.isAtSameMomentAs(checkIn)) {
         throw Exception('Check-out date must be after check-in date');
       }
 
-      // Convert destination to IATA code
-      String cityCode = _getIataCode(destination);
+      final regionId = await _getRegionId(destination);
+
       final url = Uri.parse(
-          '$_amadeusBaseUrl/v2/shopping/hotel-offers?cityCode=$cityCode&checkInDate=${checkIn.toIso8601String().split('T')[0]}&checkOutDate=${checkOut.toIso8601String().split('T')[0]}');
+          '$_rapidApiBaseUrl/v2/hotels/search'
+              '?domain=$_selectedDomain'
+              '&sort_order=RECOMMENDED'
+              '&region_id=$regionId'
+              '&checkin_date=${checkIn.toIso8601String().split('T')[0]}'
+              '&checkout_date=${checkOut.toIso8601String().split('T')[0]}'
+              '&adults_number=1'
+              '&currency=SAR'
+              '&locale=$_selectedLocale');
       print('Hotel request URL: $url');
 
       final response = await http.get(
         url,
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'X-RapidAPI-Key': _rapidApiKey,
+          'X-RapidAPI-Host': _rapidApiHost,
+        },
       );
       print('Hotel response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final hotels = (data['data'] as List? ?? []).map((hotel) {
-          final price = hotel['offers'] != null && hotel['offers'].isNotEmpty
-              ? double.tryParse(hotel['offers'][0]['price']['total'] ?? '0') ?? 0
-              : 0;
+        print('Hotel search response data: $data'); // Debug log
+
+        // Debug the properties field
+        print('Properties field: ${data['properties']}');
+
+        // Treat 'properties' as a list directly
+        final hotelsList = (data['properties'] as List? ?? []).map((hotel) {
+          // Log price-related fields to inspect the response
+          print('Hotel price fields: mapMarker=${hotel['mapMarker']}, price=${hotel['price']}');
+
+          // Price is in mapMarker.label (e.g., "CNY965"), so we extract it
+          final priceLabel = hotel['mapMarker']?['label']?.toString() ?? '0';
+          final priceString = priceLabel.replaceAll(RegExp(r'[^0-9]'), ''); // Extract digits
+          var price = double.tryParse(priceString) ?? 0;
+
+          // Check if the price is in CNY and convert to SAR if necessary
+          if (priceLabel.startsWith('CNY')) {
+            // Approximate conversion rate (as of March 2025, 1 CNY ≈ 0.53 SAR)
+            const cnyToSarRate = 0.53;
+            price = price * cnyToSarRate;
+            print('Converted price from CNY to SAR: $priceLabel -> $price SAR');
+          }
+
           final nights = checkOut.difference(checkIn).inDays;
+
           return Hotel(
-            id: hotel['hotel']['hotelId'].toString(),
-            name: hotel['hotel']['name'] ?? 'Unknown Hotel',
-            location: hotel['hotel']['cityCode'] ?? destination,
+            id: hotel['id']?.toString() ?? '',
+            name: hotel['name'] ?? 'Unknown Hotel',
+            location: hotel['neighborhood']?['name'] ?? destination,
             pricePerNight: price / nights,
+            photos: hotel['propertyImage']?['image'] != null
+                ? [hotel['propertyImage']['image']['url']?.toString() ?? '']
+                : null,
+            reviews: hotel['guestReviews'] != null
+                ? (hotel['guestReviews'] as List)
+                .map((review) => review['text']?.toString() ?? '')
+                .toList()
+                : null,
           );
         }).toList();
-        return hotels;
-      } else if (response.statusCode == 404) {
-        print('No hotels found for $destination: ${response.body}');
-        return _getFallbackHotels(destination);
+        print('Parsed hotels: $hotelsList'); // Debug log
+        return hotelsList;
       } else {
         print('Failed to load hotels: ${response.statusCode} - ${response.body}');
         return _getFallbackHotels(destination);
@@ -109,188 +102,92 @@ class BookingService {
     }
   }
 
-  // Helper method to provide fallback data for Saudi Arabia cities
-  List<Hotel> _getFallbackHotels(String destination) {
-    final String location = _getIataCode(destination);
-
-    if (location == 'RUH') {
-      return [
-        Hotel(
-          id: 'RUH-001',
-          name: 'Riyadh Season Hotel',
-          location: 'Riyadh',
-          pricePerNight: 300.0,
-        ),
-        Hotel(
-          id: 'RUH-002',
-          name: 'Al Rajhi Grand Hotel',
-          location: 'Riyadh',
-          pricePerNight: 400.0,
-        ),
-        Hotel(
-          id: 'RUH-003',
-          name: 'Kingdom Centre Hotel',
-          location: 'Riyadh',
-          pricePerNight: 350.0,
-        ),
-      ];
-    } else if (location == 'JED') {
-      return [
-        Hotel(
-          id: 'JED-001',
-          name: 'Jeddah Hilton',
-          location: 'Jeddah',
-          pricePerNight: 320.0,
-        ),
-        Hotel(
-          id: 'JED-002',
-          name: 'Rosewood Jeddah',
-          location: 'Jeddah',
-          pricePerNight: 380.0,
-        ),
-        Hotel(
-          id: 'JED-003',
-          name: 'Park Hyatt Jeddah',
-          location: 'Jeddah',
-          pricePerNight: 340.0,
-        ),
-      ];
-    } else if (location == 'MKK') {
-      return [
-        Hotel(
-          id: 'MKK-001',
-          name: 'Mecca Royal Clock Tower',
-          location: 'Mecca',
-          pricePerNight: 450.0,
-        ),
-        Hotel(
-          id: 'MKK-002',
-          name: 'Pullman ZamZam Makkah',
-          location: 'Mecca',
-          pricePerNight: 400.0,
-        ),
-        Hotel(
-          id: 'MKK-003',
-          name: 'Hilton Suites Makkah',
-          location: 'Mecca',
-          pricePerNight: 420.0,
-        ),
-      ];
-    } else if (location == 'MED') {
-      return [
-        Hotel(
-          id: 'MED-001',
-          name: 'Dar Al Taqwa Hotel',
-          location: 'Medina',
-          pricePerNight: 380.0,
-        ),
-        Hotel(
-          id: 'MED-002',
-          name: 'Anwar Al Madinah Mövenpick',
-          location: 'Medina',
-          pricePerNight: 350.0,
-        ),
-        Hotel(
-          id: 'MED-003',
-          name: 'The Oberoi Madinah',
-          location: 'Medina',
-          pricePerNight: 400.0,
-        ),
-      ];
-    } else if (location == 'DMM') {
-      return [
-        Hotel(
-          id: 'DMM-001',
-          name: 'Sheraton Dammam Hotel',
-          location: 'Dammam',
-          pricePerNight: 280.0,
-        ),
-        Hotel(
-          id: 'DMM-002',
-          name: 'Park Inn by Radisson Dammam',
-          location: 'Dammam',
-          pricePerNight: 250.0,
-        ),
-        Hotel(
-          id: 'DMM-003',
-          name: 'Dammam Palace Hotel',
-          location: 'Dammam',
-          pricePerNight: 270.0,
-        ),
-      ];
-    } else if (location == 'AHB') {
-      return [
-        Hotel(
-          id: 'AHB-001',
-          name: 'Abha Palace Hotel',
-          location: 'Abha',
-          pricePerNight: 260.0,
-        ),
-        Hotel(
-          id: 'AHB-002',
-          name: 'InterContinental Abha',
-          location: 'Abha',
-          pricePerNight: 290.0,
-        ),
-        Hotel(
-          id: 'AHB-003',
-          name: 'Blue Inn Boutique Hotel',
-          location: 'Abha',
-          pricePerNight: 240.0,
-        ),
-      ];
-    } else {
-      return [
-        Hotel(
-          id: '$location-001',
-          name: 'Grand Hotel $location',
-          location: destination,
-          pricePerNight: 250.0,
-        ),
-        Hotel(
-          id: '$location-002',
-          name: 'Plaza $location',
-          location: destination,
-          pricePerNight: 200.0,
-        ),
-        Hotel(
-          id: '$location-003',
-          name: 'Luxury Inn $location',
-          location: destination,
-          pricePerNight: 175.0,
-        ),
-      ];
-    }
-  }
-
-  // Fetch restaurants (placeholder)
-  Future<List<Restaurant>> getRestaurants(String destination) async {
-    throw UnimplementedError('Restaurant API integration pending');
-  }
-
-  // Fetch activities (placeholder)
-  Future<List<Activity>> getActivities(String destination) async {
-    throw UnimplementedError('Activity API integration pending');
-  }
-
-  // Book a hotel (using Firestore, no Amadeus token needed)
-  Future<bool> bookItem(String itemId, String userId,
-      {required BookingCategory type,
-        required DateTime checkInDate,
-        required DateTime checkOutDate,
-        required int guests,
-        required double totalPrice}) async {
-    if (type != BookingCategory.hotels) {
-      throw UnimplementedError('Only hotel booking is implemented');
-    }
-
+  // Fetch hotel details using Hotels.com Provider API
+  Future<Hotel> getHotelDetails(String hotelId, String destination) async {
     try {
-      final bookingId = 'AMA-${DateTime.now().millisecondsSinceEpoch}';
+      final url = Uri.parse(
+          '$_rapidApiBaseUrl/v2/hotels/details'
+              '?domain=$_selectedDomain'
+              '&hotel_id=$hotelId'
+              '&locale=$_selectedLocale');
+      print('Hotel details request URL: $url');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'X-RapidAPI-Key': _rapidApiKey,
+          'X-RapidAPI-Host': _rapidApiHost,
+        },
+      );
+      print('Hotel details response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final summary = data['summary'] as Map<String, dynamic>? ?? {};
+
+        return Hotel(
+          id: hotelId,
+          name: summary['name']?.toString() ?? 'Unknown Hotel',
+          location: summary['address']?['city']?.toString() ?? destination,
+          pricePerNight: 0, // Price not available in details response, use from search
+          photos: summary['images'] != null
+              ? (summary['images'] as List)
+              .map((img) => img['url']?.toString() ?? '')
+              .toList()
+              : null,
+          reviews: summary['reviews'] != null
+              ? (summary['reviews'] as List)
+              .map((review) => review['text']?.toString() ?? '')
+              .toList()
+              : null,
+        );
+      } else {
+        throw Exception('Failed to load hotel details: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getHotelDetails: $e');
+      return Hotel(
+        id: hotelId,
+        name: 'Unknown Hotel',
+        location: destination,
+        pricePerNight: 0,
+      );
+    }
+  }
+
+  // Book a hotel and save to Firestore
+  Future<bool> bookHotel({
+    required String hotelId,
+    required String userId,
+    required DateTime checkInDate,
+    required DateTime checkOutDate,
+    required int guests,
+    required double totalPrice,
+    required String destination,
+  }) async {
+    try {
+      // Log the userId and authentication state
+      final currentUser = FirebaseAuth.instance.currentUser;
+      print('Booking hotel for userId: $userId');
+      print('Current authenticated user: ${currentUser?.uid}');
+
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      if (userId != currentUser.uid) {
+        throw Exception('userId ($userId) does not match authenticated user (${currentUser.uid})');
+      }
+
+      final hotel = await getHotelDetails(hotelId, destination);
+
+      final bookingId = 'BOOK-${DateTime.now().millisecondsSinceEpoch}';
       await _bookingsCollection.doc(bookingId).set({
         'bookingId': bookingId,
         'userId': userId,
-        'itemId': itemId,
-        'type': type.toString().split('.').last,
+        'hotelId': hotelId,
+        'hotelDetails': hotel.toMap(),
+        'type': 'hotels',
         'checkInDate': Timestamp.fromDate(checkInDate),
         'checkOutDate': Timestamp.fromDate(checkOutDate),
         'guests': guests,
@@ -298,10 +195,12 @@ class BookingService {
         'status': 'confirmed',
         'createdAt': Timestamp.now(),
       });
-      print('Booking successful: $bookingId'); // Debugging
+      print('Booking successful: $bookingId');
+
+      hotel.bookingId = bookingId;
       return true;
     } catch (e) {
-      print('Error booking item: $e');
+      print('Error booking hotel: $e');
       return false;
     }
   }
@@ -310,11 +209,141 @@ class BookingService {
   Future<bool> cancelBooking(String bookingId) async {
     try {
       await _bookingsCollection.doc(bookingId).update({'status': 'cancelled'});
-      print('Booking cancelled: $bookingId'); // Debugging
+      print('Booking cancelled: $bookingId');
       return true;
     } catch (e) {
       print('Error cancelling booking: $e');
       return false;
     }
+  }
+
+  // Modify a booking
+  Future<bool> modifyBooking({
+    required String bookingId,
+    DateTime? checkInDate,
+    DateTime? checkOutDate,
+    int? guests,
+    double? totalPrice,
+  }) async {
+    try {
+      // Fetch the existing booking
+      final bookingDoc = await _bookingsCollection.doc(bookingId).get();
+      if (!bookingDoc.exists) {
+        throw Exception('Booking not found: $bookingId');
+      }
+
+      final bookingData = bookingDoc.data() as Map<String, dynamic>;
+      final currentStatus = bookingData['status'] as String?;
+      if (currentStatus == 'cancelled') {
+        throw Exception('Cannot modify a cancelled booking: $bookingId');
+      }
+
+      // Fetch hotel details to recalculate price if dates change
+      final hotelId = bookingData['hotelId'] as String;
+      final destination = bookingData['hotelDetails']['location'] as String;
+      final hotel = await getHotelDetails(hotelId, destination);
+
+      // Prepare the updated fields
+      final updatedFields = <String, dynamic>{};
+
+      DateTime newCheckInDate = checkInDate ?? (bookingData['checkInDate'] as Timestamp).toDate();
+      DateTime newCheckOutDate = checkOutDate ?? (bookingData['checkOutDate'] as Timestamp).toDate();
+      int newGuests = guests ?? (bookingData['guests'] as int);
+
+      if (checkInDate != null) {
+        updatedFields['checkInDate'] = Timestamp.fromDate(checkInDate);
+      }
+      if (checkOutDate != null) {
+        updatedFields['checkOutDate'] = Timestamp.fromDate(checkOutDate);
+      }
+      if (guests != null) {
+        updatedFields['guests'] = guests;
+      }
+
+      // Recalculate totalPrice if dates change or if totalPrice is provided
+      if (checkInDate != null || checkOutDate != null || totalPrice != null) {
+        if (totalPrice != null) {
+          updatedFields['totalPrice'] = totalPrice;
+        } else {
+          final nights = newCheckOutDate.difference(newCheckInDate).inDays;
+          if (nights <= 0) {
+            throw Exception('Check-out date must be after check-in date');
+          }
+          updatedFields['totalPrice'] = hotel.pricePerNight * nights * newGuests;
+        }
+      }
+
+      // Only update if there are fields to modify
+      if (updatedFields.isNotEmpty) {
+        updatedFields['updatedAt'] = Timestamp.now();
+        await _bookingsCollection.doc(bookingId).update(updatedFields);
+        print('Booking modified successfully: $bookingId');
+      } else {
+        print('No fields to modify for booking: $bookingId');
+      }
+
+      return true;
+    } catch (e) {
+      print('Error modifying booking: $e');
+      return false;
+    }
+  }
+
+  // Fetch user's bookings
+  Future<List<Map<String, dynamic>>> getUserBookings(String userId) async {
+    try {
+      final querySnapshot = await _bookingsCollection
+          .where('userId', isEqualTo: userId)
+          .get();
+      return querySnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    } catch (e) {
+      print('Error fetching user bookings: $e');
+      return [];
+    }
+  }
+
+  // Helper method to get region ID
+  Future<String> _getRegionId(String destination) async {
+    final url = Uri.parse(
+        '$_rapidApiBaseUrl/v2/regions?query=$destination&domain=$_selectedDomain&locale=$_selectedLocale');
+    print('Region request URL: $url');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'X-RapidAPI-Key': _rapidApiKey,
+        'X-RapidAPI-Host': _rapidApiHost,
+      },
+    );
+    print('Region response: ${response.statusCode} - ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final regions = data['data'] as List? ?? [];
+      if (regions.isNotEmpty) {
+        return regions[0]['gaiaId']?.toString() ?? '3051'; // Default to Riyadh if not found
+      }
+    }
+    return '3051'; // Default to Riyadh
+  }
+
+  // Fallback hotels in case of API failure
+  List<Hotel> _getFallbackHotels(String destination) {
+    return [
+      Hotel(
+        id: 'fallback1',
+        name: 'Fallback Hotel 1',
+        location: destination,
+        pricePerNight: 500,
+        photos: ['https://via.placeholder.com/300x200?text=Fallback+Hotel+1'],
+      ),
+      Hotel(
+        id: 'fallback2',
+        name: 'Fallback Hotel 2',
+        location: destination,
+        pricePerNight: 600,
+        photos: ['https://via.placeholder.com/300x200?text=Fallback+Hotel+2'],
+      ),
+    ];
   }
 }

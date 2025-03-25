@@ -191,12 +191,17 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
   }
 
   Future<Map<String, double>> _fetchAIExpenseBreakdown(double budget, String destination) async {
-    final apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
     if (apiKey.isEmpty) {
-      throw Exception('OpenAI API key is missing in .env file');
+      throw Exception('Gemini API key is missing in .env file');
     }
 
-    final url = 'https://api.openai.com/v1/chat/completions';
+    // First, list available models for debugging (optional, can be removed in production)
+    await _listAvailableModels(apiKey);
+
+    // Use the updated model and API version
+    final url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$apiKey';
+
     final prompt = '''
 I am traveling to $destination with a budget of $budget SAR (Saudi Riyal). 
 Provide an expense breakdown for my trip in the following categories: Accommodation, Food, Transport, and Activities.
@@ -208,27 +213,61 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
       },
       body: jsonEncode({
-        'model': 'gpt-3.5-turbo',
-        'messages': [
+        'contents': [
           {
-            'role': 'user',
-            'content': prompt,
-          },
+            'parts': [
+              {
+                'text': prompt
+              }
+            ]
+          }
         ],
-        'temperature': 0.7,
+        'generationConfig': {
+          'temperature': 0.7,
+          'maxOutputTokens': 500,
+        }
       }),
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final content = data['choices'][0]['message']['content'];
-      final breakdown = jsonDecode(content) as Map<String, dynamic>;
-      return breakdown.map((key, value) => MapEntry(key, value.toDouble()));
+
+      // Extract the text content from the Gemini API response
+      final content = data['candidates'][0]['content']['parts'][0]['text'];
+
+      // Try to extract JSON from the response
+      final jsonMatch = RegExp(r'\{[^}]+\}').firstMatch(content);
+      if (jsonMatch != null) {
+        final breakdown = jsonDecode(jsonMatch[0]!) as Map<String, dynamic>;
+        // Validate the breakdown to ensure it matches the budget
+        final total = breakdown.values.fold<double>(0, (sum, value) => sum + value.toDouble());
+        if ((total - budget).abs() > 1.0) { // Allow small rounding errors
+          throw Exception('AI-generated breakdown does not add up to the budget: $total SAR vs $budget SAR');
+        }
+        return breakdown.map((key, value) => MapEntry(key, value.toDouble()));
+      }
+
+      throw Exception('Could not parse JSON from Gemini response');
     } else {
       throw Exception('Failed to fetch AI expense breakdown: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+// Method to list available models (for debugging)
+  Future<void> _listAvailableModels(String apiKey) async {
+    final url = 'https://generativelanguage.googleapis.com/v1/models?key=$apiKey';
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('Available Gemini models:');
+      for (var model in data['models']) {
+        print('- ${model['name']} (Supported methods: ${model['supportedGenerationMethods']})');
+      }
+    } else {
+      print('Failed to list models: ${response.statusCode} - ${response.body}');
     }
   }
 
@@ -693,22 +732,21 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
       Colors.red,
       Colors.green,
       Colors.amber,
-      Colors.purple,
-      Colors.teal,
     ];
 
     return SizedBox(
-      height: 240,
+      height: 130, // Reduced height from 180 to 150
       child: Card(
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(5.0), // Reduced padding from 8.0 to 6.0
           child: Row(
             children: [
               Expanded(
+                flex: 2,
                 child: AnimatedBuilder(
                   animation: _animation,
                   builder: (context, _) {
@@ -719,15 +757,16 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                         ),
                         sections: _getSections(colorList),
                         sectionsSpace: 2,
-                        centerSpaceRadius: 40,
+                        centerSpaceRadius: 20, // Reduced center space from 30 to 25
                         startDegreeOffset: -90,
                       ),
                     );
                   },
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 5), // Reduced spacing from 8 to 6
               Expanded(
+                flex: 1,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,23 +776,23 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                           (index) {
                         final entry = _expenseBreakdown.entries.elementAt(index);
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
+                          padding: const EdgeInsets.only(bottom: 2.5), // Reduced padding from 4.0 to 3.0
                           child: Row(
                             children: [
                               Container(
-                                width: 16,
-                                height: 16,
+                                width: 10, // Reduced dot size from 12 to 10
+                                height: 8, // Reduced dot size from 12 to 10
                                 decoration: BoxDecoration(
                                   color: colorList[index % colorList.length],
                                   shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 3), // Reduced spacing from 6 to 4
                               Expanded(
                                 child: Text(
                                   entry.key,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 8, // Reduced font size from 10 to 9
                                     fontWeight: FontWeight.bold,
                                   ),
                                   overflow: TextOverflow.ellipsis,
@@ -788,9 +827,9 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
           color: colorList[index % colorList.length],
           value: entry.value,
           title: '${percentage.round()}%',
-          radius: 110 * _animation.value,
+          radius: 50 * _animation.value, // Reduced radius from 80 to 60
           titleStyle: const TextStyle(
-            fontSize: 14,
+            fontSize: 10, // Reduced font size from 12 to 10
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/ui/screens/budget_screen.dart';
 import 'package:mershed/ui/screens/booking_screen.dart';
@@ -19,7 +20,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final String _profileImage = 'assets/images/profile_placeholder.webp';
+  int _selectedIndex = 0; // Track the selected bottom navigation item
 
   @override
   Widget build(BuildContext context) {
@@ -54,11 +55,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.brown.shade800,
                         ),
                       ),
-                      Text(
-                        'View All',
-                        style: TextStyle(
-                          color: accentColor,
-                          fontWeight: FontWeight.w500,
+                      GestureDetector(
+                        onTap: () {
+                          // Navigate to a screen listing all services
+                          Navigator.pushNamed(context, AppRoutes.allServices);
+                        },
+                        child: Text(
+                          'View All',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -83,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const TripPlanScreen()),
                           ),
-                          enabled: true, // Available to all
+                          enabled: true,
                         ),
                         _buildMenuCard(
                           context,
@@ -94,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const NavigationTransportScreen()),
                           ),
-                          enabled: true, // Available to all
+                          enabled: true,
                         ),
                         _buildMenuCard(
                           context,
@@ -131,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const CulturalInsightsScreen()),
                           ),
-                          enabled: true, // Available to all
+                          enabled: true,
                         ),
                         _buildMenuCard(
                           context,
@@ -142,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(builder: (context) => const ChatbotScreen()),
                           ),
-                          enabled: true, // Available to all
+                          enabled: true,
                         ),
                       ],
                     ),
@@ -172,6 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader(BuildContext context, MershadAuthProvider authProvider) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -188,35 +196,119 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               SizedBox(height: 4),
-              Text(
-                authProvider.isGuest ? 'Guest' : (authProvider.user?.name ?? 'Explorer!'),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
+              StreamBuilder<DocumentSnapshot>(
+                stream: userId != null
+                    ? FirebaseFirestore.instance.collection('users').doc(userId).snapshots()
+                    : null,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Text(
+                      'Loading...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                      ),
+                    );
+                  }
+                  if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+                    return Text(
+                      authProvider.isGuest ? 'Guest' : 'Explorer!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                      ),
+                    );
+                  }
+                  final userData = snapshot.data!.data() as Map<String, dynamic>;
+                  final userName = userData['name'] ?? 'Explorer!';
+                  return Text(
+                    authProvider.isGuest ? 'Guest' : userName,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                  );
+                },
               ),
             ],
           ),
           Row(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.notifications_none, color: Colors.white),
-                  onPressed: () {},
-                ),
+              StreamBuilder<QuerySnapshot>(
+                stream: userId != null
+                    ? FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
+                    .collection('notifications')
+                    .where('read', isEqualTo: false)
+                    .snapshots()
+                    : null,
+                builder: (context, snapshot) {
+                  int unreadCount = 0;
+                  if (snapshot.hasData) {
+                    unreadCount = snapshot.data!.docs.length;
+                  }
+                  return Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          icon: Icon(Icons.notifications_none, color: Colors.white),
+                          onPressed: () {
+                            // Navigate to notifications screen
+                            Navigator.pushNamed(context, AppRoutes.notifications);
+                          },
+                        ),
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$unreadCount',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
               SizedBox(width: 10),
-              GestureDetector(
-                onTap: () => _showProfileOptions(context),
-                child: CircleAvatar(
-                  radius: 22,
-                  backgroundImage: AssetImage(_profileImage),
-                ),
+              StreamBuilder<DocumentSnapshot>(
+                stream: userId != null
+                    ? FirebaseFirestore.instance.collection('users').doc(userId).snapshots()
+                    : null,
+                builder: (context, snapshot) {
+                  String profileImage = 'assets/images/profile_placeholder.webp';
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    final userData = snapshot.data!.data() as Map<String, dynamic>;
+                    profileImage = userData['profileImage'] ?? profileImage;
+                  }
+                  return GestureDetector(
+                    onTap: () => _showProfileOptions(context),
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundImage: NetworkImage(profileImage),
+                      onBackgroundImageError: (_, __) => AssetImage('assets/images/profile_placeholder.webp'),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -226,117 +318,163 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFeaturedDestination(Size size) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 24),
-      height: size.height * 0.2,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        image: DecorationImage(
-          image: AssetImage('assets/images/featured_destination.jpeg'),
-          fit: BoxFit.cover,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            offset: Offset(0, 5),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Container(
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('featured_destinations')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            margin: EdgeInsets.symmetric(horizontal: 24),
+            height: size.height * 0.2,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Container(
+            margin: EdgeInsets.symmetric(horizontal: 24),
+            height: size.height * 0.2,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.7),
-                ],
-              ),
+              color: Colors.grey.shade200,
             ),
+            child: Center(child: Text('No featured destination available')),
+          );
+        }
+
+        final doc = snapshot.data!.docs.first;
+        final data = doc.data() as Map<String, dynamic>;
+        final name = data['name'] ?? 'Mystical Trails Mushroom Forest';
+        final location = data['location'] ?? 'Enchanted Valley';
+        final rating = data['rating']?.toString() ?? '4.8';
+        final imageUrl = data['imageUrl'] ?? 'assets/images/featured_destination.jpeg';
+
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 24),
+          height: size.height * 0.2,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            image: DecorationImage(
+              image: NetworkImage(imageUrl),
+              fit: BoxFit.cover,
+              onError: (_, __) => AssetImage('assets/images/featured_destination.jpeg'),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                offset: Offset(0, 5),
+                blurRadius: 10,
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  'Featured Destination',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+          child: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.7),
+                    ],
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Mystical Trails Mushroom Forest',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Row(
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                    SizedBox(width: 4),
                     Text(
-                      '4.8',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Icon(
-                      Icons.location_on,
-                      color: Colors.white70,
-                      size: 16,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Enchanted Valley',
+                      'Featured Destination',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          color: Colors.amber,
+                          size: 16,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          rating,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Icon(
+                          Icons.location_on,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          location,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 15,
-            right: 15,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Color(0xFFB94A2F).withOpacity(0.9),
-                borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                'Explore',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
+              Positioned(
+                top: 15,
+                right: 15,
+                child: GestureDetector(
+                  onTap: () {
+                    // Navigate to a detailed destination screen
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.destinationDetail,
+                      arguments: doc.id,
+                    );
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFB94A2F).withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Explore',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -386,6 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNavigation(Color primaryColor) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     return Container(
       height: 80,
       padding: EdgeInsets.symmetric(horizontal: 24),
@@ -406,34 +545,94 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(Icons.home, 'Home', primaryColor, true),
-          _buildNavItem(Icons.search, 'Search', Colors.grey, false),
-          _buildNavItem(Icons.favorite_border, 'Saved', Colors.grey, false),
-          _buildNavItem(Icons.person_outline, 'Profile', Colors.grey, false),
+          _buildNavItem(Icons.home, 'Home', primaryColor, 0),
+          _buildNavItem(Icons.search, 'Search', primaryColor, 1),
+          StreamBuilder<QuerySnapshot>(
+            stream: userId != null
+                ? FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .collection('saved_destinations')
+                .snapshots()
+                : null,
+            builder: (context, snapshot) {
+              int savedCount = 0;
+              if (snapshot.hasData) {
+                savedCount = snapshot.data!.docs.length;
+              }
+              return Stack(
+                children: [
+                  _buildNavItem(Icons.favorite_border, 'Saved', primaryColor, 2),
+                  if (savedCount > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$savedCount',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          _buildNavItem(Icons.person_outline, 'Profile', primaryColor, 3),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, Color color, bool isActive) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          color: color,
-          size: 28,
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+  Widget _buildNavItem(IconData icon, String label, Color color, int index) {
+    bool isActive = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedIndex = index;
+        });
+        switch (index) {
+          case 0:
+          // Already on HomeScreen
+            break;
+          case 1:
+            Navigator.pushNamed(context, AppRoutes.search);
+            break;
+          case 2:
+            Navigator.pushNamed(context, AppRoutes.saved);
+            break;
+          case 3:
+            Navigator.pushNamed(context, AppRoutes.profile);
+            break;
+        }
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: isActive ? color : Colors.grey,
+            size: 28,
           ),
-        ),
-      ],
+          SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? color : Colors.grey,
+              fontSize: 12,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

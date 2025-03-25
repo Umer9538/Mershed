@@ -50,5 +50,14 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<!-- Add Google Maps configurations -->
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	<key>GoogleMapsMapId</key>
+	<string>99a6a0ae6dd647a2</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to provide navigation services.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location to provide navigation services even when the app is in the background.</string>
 </dict>
 </plist>

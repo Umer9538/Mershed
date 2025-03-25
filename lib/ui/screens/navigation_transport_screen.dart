@@ -1,13 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart' as flutter_map;
-import 'package:mershed/core/services/map_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:mershed/ui/screens/map_screen.dart';
-import 'package:latlong2/latlong.dart' as latlong;
 import 'package:mershed/core/services/car_rental_service.dart';
 import 'package:mershed/core/services/public_transport_service.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mershed/core/services/map_service.dart';
+
 
 class NavigationTransportScreen extends StatefulWidget {
   const NavigationTransportScreen({super.key});
@@ -61,24 +61,16 @@ class _NavigationTransportScreenState extends State<NavigationTransportScreen> w
       body: TabBarView(
         controller: _tabController,
         children: [
-          // FR9: Real-time navigation (already implemented)
-          const MapScreen(),
-
-          // FR10: Public transportation routes
-          const PublicTransportScreen(),
-
-          // FR11: Car rental and pickup locations
-          const CarRentalScreen(),
-
-          // FR12: Car rental permit guidance
-          const PermitGuidanceScreen(),
+          const MapScreen(), // FR9
+          const PublicTransportScreen(), // FR10
+          const CarRentalScreen(), // FR11
+          const PermitGuidanceScreen(), // FR12
         ],
       ),
     );
   }
 }
 
-// FR10: Public Transport Screen
 class PublicTransportScreen extends StatefulWidget {
   const PublicTransportScreen({super.key});
 
@@ -91,12 +83,13 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
   final TextEditingController _endController = TextEditingController();
   List<PublicTransportRoute> _routes = [];
   PublicTransportRoute? _selectedRoute;
-  late flutter_map.MapController _mapController;
+  late GoogleMapController _mapController;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
 
   @override
   void initState() {
     super.initState();
-    _mapController = flutter_map.MapController();
   }
 
   Future<void> _searchRoutes() async {
@@ -116,25 +109,46 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
         _routes = routes;
         _selectedRoute = routes.isNotEmpty ? routes[0] : null;
         if (_selectedRoute != null) {
-          _mapController.move(_selectedRoute!.polylinePoints[0], 12);
+          _updateMap(_selectedRoute!);
         }
       });
     } catch (e) {
-      String errorMessage = 'Error fetching routes: $e';
-      if (e.toString().contains('REQUEST_DENIED')) {
-        errorMessage =
-        'Failed to fetch routes. Please ensure the Geocoding and Directions APIs are enabled in Google Cloud Console and billing is set up.';
-      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
+        SnackBar(content: Text('Error fetching routes: $e')),
       );
     }
+  }
+
+  void _updateMap(PublicTransportRoute route) {
+    setState(() {
+      _markers = {
+        Marker(
+          markerId: const MarkerId('start'),
+          position: route.polylinePoints.first,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        ),
+        Marker(
+          markerId: const MarkerId('end'),
+          position: route.polylinePoints.last,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      };
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: route.polylinePoints,
+          color: Colors.blue,
+          width: 4,
+        ),
+      };
+      _mapController.animateCamera(CameraUpdate.newLatLngZoom(route.polylinePoints.first, 12));
+    });
   }
 
   void _selectRoute(PublicTransportRoute route) {
     setState(() {
       _selectedRoute = route;
-      _mapController.move(route.polylinePoints[0], 12);
+      _updateMap(route);
     });
   }
 
@@ -142,6 +156,7 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
   void dispose() {
     _startController.dispose();
     _endController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -150,7 +165,6 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Input fields and search button
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -178,38 +192,20 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
               ],
             ),
           ),
-
-          // Map to show the selected route
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.3, // Responsive height
-            child: flutter_map.FlutterMap(
-              mapController: _mapController,
-              options: flutter_map.MapOptions(
-                center: latlong.LatLng(24.7136, 46.6753), // Default: Riyadh
+            height: MediaQuery.of(context).size.height * 0.3,
+            child: GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: MapService.defaultLocation,
                 zoom: 10,
               ),
-              children: [
-                flutter_map.TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // Removed subdomains
-                  userAgentPackageName: 'com.example.mershed',
-                ),
-                if (_selectedRoute != null)
-                  flutter_map.PolylineLayer(
-                    polylines: [
-                      flutter_map.Polyline(
-                        points: _selectedRoute!.polylinePoints,
-                        strokeWidth: 4.0,
-                        color: Colors.blue,
-                      ),
-                    ],
-                  ),
-              ],
+              onMapCreated: (controller) => _mapController = controller,
+              markers: _markers,
+              polylines: _polylines,
             ),
           ),
-
-          // Routes list
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.3, // Responsive height
+            height: MediaQuery.of(context).size.height * 0.3,
             child: ListView.builder(
               itemCount: _routes.length,
               itemBuilder: (context, index) {
@@ -226,8 +222,6 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
               },
             ),
           ),
-
-          // Instructions for selected route
           if (_selectedRoute != null)
             Container(
               padding: const EdgeInsets.all(16.0),
@@ -257,7 +251,6 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
   }
 }
 
-// FR11: Car Rental Screen
 class CarRentalScreen extends StatefulWidget {
   const CarRentalScreen({super.key});
 
@@ -285,7 +278,7 @@ class _CarRentalScreenState extends State<CarRentalScreen> {
     });
 
     try {
-      final locations = await CarRentalService().getCarRentalLocations();
+      final locations = await CarRentalService().getCarRentalLocations(MapService.defaultLocation);
       if (mounted) {
         setState(() {
           _locations = locations;
@@ -364,9 +357,8 @@ class _CarRentalScreenState extends State<CarRentalScreen> {
   }
 }
 
-// Helper MapScreen to show specific location
 class MapScreenWithLocation extends StatefulWidget {
-  final latlong.LatLng location;
+  final LatLng location;
 
   const MapScreenWithLocation({super.key, required this.location});
 
@@ -375,29 +367,25 @@ class MapScreenWithLocation extends StatefulWidget {
 }
 
 class _MapScreenWithLocationState extends State<MapScreenWithLocation> {
-  late flutter_map.MapController _mapController;
-  Set<flutter_map.Marker> _markers = {};
+  late GoogleMapController _mapController;
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
     super.initState();
-    _mapController = flutter_map.MapController();
     _loadMarkers();
   }
 
   Future<void> _loadMarkers() async {
     setState(() {
       _markers = {
-        flutter_map.Marker(
-          point: widget.location,
-          child: const Icon(
-            Icons.car_rental,
-            color: Colors.blue,
-            size: 40,
-          ),
+        Marker(
+          markerId: const MarkerId('car_rental'),
+          position: widget.location,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),
       };
-      _mapController.move(widget.location, 15);
+      _mapController.animateCamera(CameraUpdate.newLatLngZoom(widget.location, 15));
     });
   }
 
@@ -407,26 +395,27 @@ class _MapScreenWithLocationState extends State<MapScreenWithLocation> {
       appBar: AppBar(
         title: const Text('Car Rental Location'),
       ),
-      body: flutter_map.FlutterMap(
-        mapController: _mapController,
-        options: flutter_map.MapOptions(
-          center: widget.location,
+      body: GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: widget.location,
           zoom: 15,
         ),
-        children: [
-          flutter_map.TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // Removed subdomains
-            userAgentPackageName: 'com.example.mershed',
-          ),
-          flutter_map.MarkerLayer(markers: _markers.toList()),
-        ],
+        onMapCreated: (controller) {
+          _mapController = controller;
+          _loadMarkers();
+        },
+        markers: _markers,
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
 }
 
-// FR12: Permit Guidance Screen
-// FR12: Permit Guidance Screen
 class PermitGuidanceScreen extends StatefulWidget {
   const PermitGuidanceScreen({super.key});
 
@@ -439,7 +428,7 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
   final TextEditingController _vehicleController = TextEditingController();
   bool _isLoading = false;
   String? _requestStatus;
-  String? _requestId; // To store the request ID for status checking
+  String? _requestId;
 
   Future<void> _submitPermitRequest() async {
     if (_idController.text.isEmpty || _vehicleController.text.isEmpty) {
@@ -449,7 +438,6 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
       return;
     }
 
-    // Validate National ID (assuming a 13-digit CNIC for Pakistan)
     if (_idController.text.length != 13 || !RegExp(r'^\d+$').hasMatch(_idController.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('National ID must be a 13-digit number (e.g., CNIC)')),
@@ -457,7 +445,6 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
       return;
     }
 
-    // Validate vehicle number plate (basic format check, e.g., ABC-123)
     if (!RegExp(r'^[A-Z]{3}-\d{3}$').hasMatch(_vehicleController.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vehicle number plate must be in the format ABC-123')),
@@ -514,7 +501,6 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
       final statusResponse = await AbsherNafathService().checkPermitStatus(requestId: _requestId!);
       if (mounted) {
         setState(() {
-          // Capitalize the approval status and display it
           String approvalStatus = statusResponse['approvalStatus'];
           approvalStatus = approvalStatus[0].toUpperCase() + approvalStatus.substring(1);
           _requestStatus = 'Permit Status: $approvalStatus';
@@ -633,9 +619,6 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
   }
 }
 
-
-// Service to handle permit requests using a mock API
-// Service to handle permit requests using a mock API
 class AbsherNafathService {
   final String _permitRequestUrl = dotenv.env['MOCK_PERMIT_REQUEST_URL'] ?? '';
   final String _permitStatusUrl = dotenv.env['MOCK_PERMIT_STATUS_URL'] ?? '';
@@ -672,14 +655,10 @@ class AbsherNafathService {
     }
 
     final url = '$_permitStatusUrl?requestId=$requestId';
-    print('Checking permit status at URL: $url'); // Debug log
-
     final response = await http.get(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
     );
-
-    print('Status check response: ${response.statusCode} - ${response.body}'); // Debug log
 
     if (response.statusCode != 200) {
       throw Exception('Failed to check permit status: ${response.statusCode} - ${response.body}');
@@ -690,10 +669,7 @@ class AbsherNafathService {
       throw Exception('Failed to retrieve permit status: ${data['message']}');
     }
 
-    // Override the requestId in the response with the input requestId
     data['requestId'] = requestId;
-    print('Final response data: $data'); // Debug log for the final data
-
     return data;
   }
 }

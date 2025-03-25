@@ -4,6 +4,8 @@ class Hotel {
   final String location;
   final double pricePerNight;
   String? bookingId; // Added to track booking status
+  final List<String>? photos; // List of photo URLs
+  final List<String>? reviews; // List of review texts
 
   Hotel({
     required this.id,
@@ -11,6 +13,8 @@ class Hotel {
     required this.location,
     required this.pricePerNight,
     this.bookingId,
+    this.photos,
+    this.reviews,
   });
 
   Map<String, dynamic> toMap() => {
@@ -19,13 +23,17 @@ class Hotel {
     'location': location,
     'pricePerNight': pricePerNight,
     'bookingId': bookingId,
+    'photos': photos ?? [],
+    'reviews': reviews ?? [],
   };
 
   factory Hotel.fromMap(Map<String, dynamic> map) => Hotel(
-    id: map['id'],
-    name: map['name'],
-    location: map['location'],
-    pricePerNight: map['pricePerNight'],
+    id: map['id'].toString(),
+    name: map['name'] ?? 'Unknown Hotel',
+    location: map['location'] ?? 'Unknown Location',
+    pricePerNight: double.tryParse(map['pricePerNight']?.toString() ?? '0') ?? 0,
     bookingId: map['bookingId'],
+    photos: map['photos'] != null ? List<String>.from(map['photos']) : null,
+    reviews: map['reviews'] != null ? List<String>.from(map['reviews']) : null,
   );
 }

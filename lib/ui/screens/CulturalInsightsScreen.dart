@@ -46,7 +46,7 @@ class _CulturalInsightsScreenState extends State<CulturalInsightsScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: Color(0xFFB94A2F),
         elevation: 0,
         title: const Text(
           'Cultural Insights & Compliance',
