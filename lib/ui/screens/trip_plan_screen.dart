@@ -156,6 +156,22 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     'Jeddah',
     'Mecca',
     'Medina',
+    'Dammam',
+    'Khobar',
+    'Abha',
+    'Taif',
+    'Tabuk',
+    'Al Khobar',
+    'Yanbu',
+    'Jubail',
+    /*'Najran',
+    'Hail',
+    'Al Baha',
+    'Buraydah',
+    'Khamis Mushait',
+    'Al Hofuf',
+    'Al Mubarraz',
+    'Qatif',*/
   ];
 
   @override
@@ -1084,9 +1100,23 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     } else if (destination.contains('jeddah')) {
       imagePath = 'assets/images/jeddah.jpeg';
     } else if (destination.contains('mecca')) {
-      imagePath = 'assets/images/mecca.jpg';
+      imagePath = 'assets/images/makkah.jpg';
     } else if (destination.contains('medina')) {
-      imagePath = 'assets/images/medina.jpg';
+      imagePath = 'assets/images/medina.jpeg';
+    } else if (destination.contains('dammam')) {
+      imagePath = 'assets/images/dammam.jpg';
+    } else if (destination.contains('khobar')) {
+      imagePath = 'assets/images/khobar.jpg';
+    } else if (destination.contains('abha')) {
+      imagePath = 'assets/images/abha.jpg';
+    } else if (destination.contains('taif')) {
+      imagePath = 'assets/images/TAIF.jpg';
+    } else if (destination.contains('tabuk')) {
+      imagePath = 'assets/images/TAKUK.jpeg';
+    } else if (destination.contains('yanbu')) {
+      imagePath = 'assets/images/YANBU.jpeg';
+    } else if (destination.contains('jubail')) {
+      imagePath = 'assets/images/JUBAIL.jpeg';
     }
 
     if (imagePath == null) return const SizedBox.shrink();

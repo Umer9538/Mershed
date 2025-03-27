@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:mershed/config/app_routes.dart';
 import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/core/providers/recommendation_provider.dart';
@@ -81,12 +82,20 @@ class MyApp extends StatelessWidget {
           ],
           child: Consumer<ThemeProvider>(
             builder: (context, themeProvider, child) {
-              return MaterialApp(
-                title: 'Mershed',
-                theme: themeProvider.themeData,
-                initialRoute: AppRoutes.splash, // Set splash as initial route
-                routes: AppRoutes.routes,
-                onGenerateRoute: AppRoutes.generateRoute,
+              return ScreenUtilInit( // Wrap MaterialApp with ScreenUtilInit
+                designSize: const Size(360, 640), // Design size based on the screenshot
+                minTextAdapt: true,
+                splitScreenMode: true,
+                builder: (context, child) {
+                  return MaterialApp(
+                    debugShowCheckedModeBanner: false, // Add this to remove debug banner
+                    title: 'Mershed',
+                    theme: themeProvider.themeData,
+                    initialRoute: AppRoutes.splash,
+                    routes: AppRoutes.routes,
+                    onGenerateRoute: AppRoutes.generateRoute,
+                  );
+                },
               );
             },
           ),
@@ -121,7 +130,6 @@ class MyApp extends StatelessWidget {
     }
   }
 }
-
 
 
 

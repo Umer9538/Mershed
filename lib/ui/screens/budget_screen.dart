@@ -124,13 +124,13 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
   }
 
   void _showCustomSnackBar(String message, Color backgroundColor) {
-    const fabHeight = 56.0; // Default FAB height
-    const fabBottomPadding = 16.0; // Default padding from bottom
-    const snackBarBottomMargin = fabHeight + fabBottomPadding + 10.0; // Extra buffer
+    const fabHeight = 56.0;
+    const fabBottomPadding = 16.0;
+    const snackBarBottomMargin = fabHeight + fabBottomPadding + 10.0;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -196,10 +196,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
       throw Exception('Gemini API key is missing in .env file');
     }
 
-    // First, list available models for debugging (optional, can be removed in production)
     await _listAvailableModels(apiKey);
 
-    // Use the updated model and API version
     final url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$apiKey';
 
     final prompt = '''
@@ -211,16 +209,12 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
 
     final response = await http.post(
       Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'contents': [
           {
             'parts': [
-              {
-                'text': prompt
-              }
+              {'text': prompt}
             ]
           }
         ],
@@ -233,29 +227,22 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-
-      // Extract the text content from the Gemini API response
       final content = data['candidates'][0]['content']['parts'][0]['text'];
-
-      // Try to extract JSON from the response
       final jsonMatch = RegExp(r'\{[^}]+\}').firstMatch(content);
       if (jsonMatch != null) {
         final breakdown = jsonDecode(jsonMatch[0]!) as Map<String, dynamic>;
-        // Validate the breakdown to ensure it matches the budget
         final total = breakdown.values.fold<double>(0, (sum, value) => sum + value.toDouble());
-        if ((total - budget).abs() > 1.0) { // Allow small rounding errors
+        if ((total - budget).abs() > 1.0) {
           throw Exception('AI-generated breakdown does not add up to the budget: $total SAR vs $budget SAR');
         }
         return breakdown.map((key, value) => MapEntry(key, value.toDouble()));
       }
-
       throw Exception('Could not parse JSON from Gemini response');
     } else {
       throw Exception('Failed to fetch AI expense breakdown: ${response.statusCode} - ${response.body}');
     }
   }
 
-// Method to list available models (for debugging)
   Future<void> _listAvailableModels(String apiKey) async {
     final url = 'https://generativelanguage.googleapis.com/v1/models?key=$apiKey';
     final response = await http.get(Uri.parse(url));
@@ -294,9 +281,8 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
     return Scaffold(
       body: Column(
         children: [
-          // Top section with background image
           Container(
-            height: 120, // Adjust height as needed
+            height: 120,
             decoration: const BoxDecoration(
               image: DecorationImage(
                 image: AssetImage('assets/images/background.jpeg'),
@@ -310,7 +296,6 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
               ),
             ),
           ),
-          // Main content
           Expanded(
             child: SingleChildScrollView(
               child: Padding(
@@ -338,9 +323,10 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
         duration: const Duration(milliseconds: 800),
         child: FloatingActionButton.extended(
           onPressed: () => _showBudgetTipsDialog(context),
-          icon: const Icon(Icons.lightbulb_outline),
-          label: const Text("Travel Tips"),
+          icon: const Icon(Icons.lightbulb_outline, color: Colors.white),
+          label: const Text("Travel Tips", style: TextStyle(color: Colors.white)),
           tooltip: 'Budget Tips',
+          backgroundColor: theme.colorScheme.primary,
         ),
       ),
     );
@@ -353,13 +339,12 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.4), // Darker background for contrast
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
-              color: Colors.white,
             ),
           ),
           Expanded(
@@ -371,7 +356,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 shadows: [
                   Shadow(
                     blurRadius: 10.0,
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withOpacity(0.7),
                     offset: const Offset(2.0, 2.0),
                   ),
                 ],
@@ -414,6 +399,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 'Where are you traveling?',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Colors.black87, // Changed text color here
                 ),
               ),
               const SizedBox(height: 12),
@@ -449,6 +435,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 'What\'s your budget?',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Colors.black87, // Changed text color here
                 ),
               ),
               const SizedBox(height: 12),
@@ -491,6 +478,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 'Convert to another currency:',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 12),
@@ -595,16 +583,13 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.secondary.withOpacity(0.2),
+              color: theme.colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.secondary.withOpacity(0.5),
-                width: 1,
-              ),
+              border: Border.all(color: theme.colorScheme.secondary.withOpacity(0.5)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline),
+                Icon(Icons.info_outline, color: theme.colorScheme.onSecondaryContainer),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -614,6 +599,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                         'Your Budget for ${_destinationController.text}',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSecondaryContainer,
                         ),
                       ),
                       Text(
@@ -634,6 +620,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
             'Expense Breakdown',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 16),
@@ -655,9 +642,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
           const SizedBox(height: 24),
           Card(
             elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -667,6 +652,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                     'Currency Conversion',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const Divider(),
@@ -675,12 +661,13 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                     children: [
                       Text(
                         'Total in SAR:',
-                        style: theme.textTheme.bodyLarge,
+                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurface),
                       ),
                       Text(
                         _formatCurrency(_totalBudget!),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -691,12 +678,13 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                     children: [
                       Text(
                         'Total in $_selectedCurrency:',
-                        style: theme.textTheme.bodyLarge,
+                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurface),
                       ),
                       Text(
                         _formatCurrency(_totalBudget! * _exchangeRate!, _selectedCurrency),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -707,12 +695,13 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                     children: [
                       Text(
                         'Exchange Rate:',
-                        style: theme.textTheme.bodyLarge,
+                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurface),
                       ),
                       Text(
                         '1 SAR = ${_exchangeRate!.toStringAsFixed(4)} $_selectedCurrency',
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -735,14 +724,12 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
     ];
 
     return SizedBox(
-      height: 130, // Reduced height from 180 to 150
+      height: 130,
       child: Card(
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: const EdgeInsets.all(5.0), // Reduced padding from 8.0 to 6.0
+          padding: const EdgeInsets.all(5.0),
           child: Row(
             children: [
               Expanded(
@@ -752,19 +739,16 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                   builder: (context, _) {
                     return PieChart(
                       PieChartData(
-                        pieTouchData: PieTouchData(
-                          touchCallback: (_, __) {},
-                        ),
                         sections: _getSections(colorList),
                         sectionsSpace: 2,
-                        centerSpaceRadius: 20, // Reduced center space from 30 to 25
+                        centerSpaceRadius: 20,
                         startDegreeOffset: -90,
                       ),
                     );
                   },
                 ),
               ),
-              const SizedBox(width: 5), // Reduced spacing from 8 to 6
+              const SizedBox(width: 5),
               Expanded(
                 flex: 1,
                 child: Column(
@@ -776,24 +760,25 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                           (index) {
                         final entry = _expenseBreakdown.entries.elementAt(index);
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 2.5), // Reduced padding from 4.0 to 3.0
+                          padding: const EdgeInsets.only(bottom: 2.5),
                           child: Row(
                             children: [
                               Container(
-                                width: 10, // Reduced dot size from 12 to 10
-                                height: 8, // Reduced dot size from 12 to 10
+                                width: 10,
+                                height: 8,
                                 decoration: BoxDecoration(
                                   color: colorList[index % colorList.length],
                                   shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(width: 3), // Reduced spacing from 6 to 4
+                              const SizedBox(width: 3),
                               Expanded(
                                 child: Text(
                                   entry.key,
-                                  style: const TextStyle(
-                                    fontSize: 8, // Reduced font size from 10 to 9
+                                  style: TextStyle(
+                                    fontSize: 8,
                                     fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onSurface,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -818,18 +803,15 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
     int index = 0;
 
     for (var entry in _expenseBreakdown.entries) {
-      final percentage = (_totalBudget != 0)
-          ? (entry.value / _totalBudget! * 100)
-          : 0;
-
+      final percentage = (_totalBudget != 0) ? (entry.value / _totalBudget! * 100) : 0;
       sections.add(
         PieChartSectionData(
           color: colorList[index % colorList.length],
           value: entry.value,
           title: '${percentage.round()}%',
-          radius: 50 * _animation.value, // Reduced radius from 80 to 60
+          radius: 50 * _animation.value,
           titleStyle: const TextStyle(
-            fontSize: 10, // Reduced font size from 12 to 10
+            fontSize: 10,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -837,7 +819,6 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
       );
       index++;
     }
-
     return sections;
   }
 
@@ -845,7 +826,6 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 3,
-      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -869,17 +849,27 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 children: [
                   Text(
                     category,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${_formatCurrency(amount)} ($percentage%)',
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   if (_exchangeRate != null)
                     Text(
                       _formatCurrency(amount * _exchangeRate!, _selectedCurrency),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),
@@ -894,17 +884,16 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                       CircularProgressIndicator(
                         value: percentage / 100,
                         backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).colorScheme.primary,
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                         strokeWidth: 6,
                       ),
                       Center(
                         child: Text(
                           '$percentage%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -929,12 +918,11 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
           initialChildSize: 0.6,
           maxChildSize: 0.9,
           minChildSize: 0.5,
-          expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 children: [
@@ -957,6 +945,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                       'Smart Travel Tips',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -1017,15 +1006,13 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
                         minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: const Text(
                         'Got it!',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
                   ),
@@ -1048,9 +1035,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
@@ -1062,10 +1047,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 color: bgColor,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: iconColor,
-              ),
+              child: Icon(icon, color: iconColor),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -1074,9 +1056,10 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1084,7 +1067,7 @@ Example response: {"Accommodation": 2000, "Food": 1500, "Transport": 1000, "Acti
                     description,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[700],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

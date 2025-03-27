@@ -162,6 +162,7 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -187,7 +188,21 @@ class _PublicTransportScreenState extends State<PublicTransportScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: _searchRoutes,
-                  child: const Text('Search Routes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB94A2F), // Match app theme
+                    foregroundColor: Colors.white, // Ensure text is visible
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  ),
+                  child: const Text(
+                    'Search Routes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -538,6 +553,7 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: ListView(
@@ -556,7 +572,8 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
           const Text('Step 4: Check the approval status'),
           const SizedBox(height: 16),
           const Text(
-            'Note: This is a simulated permit request for FYP purposes.',
+            'Note: This is a permit request for car rental services. ',
+
             style: TextStyle(color: Colors.red),
           ),
           const SizedBox(height: 16),
@@ -585,13 +602,41 @@ class _PermitGuidanceScreenState extends State<PermitGuidanceScreen> {
             children: [
               ElevatedButton(
                 onPressed: _submitPermitRequest,
-                child: const Text('Submit Permit Request'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB94A2F), // Match app theme
+                  foregroundColor: Colors.white, // Ensure text visibility
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                ),
+                child: const Text(
+                  'Submit Permit Request',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               if (_requestId != null)
                 ElevatedButton(
                   onPressed: _checkPermitStatus,
-                  child: const Text('Check Permit Status'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB94A2F), // Match app theme
+                    foregroundColor: Colors.white, // Ensure text visibility
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  ),
+                  child: const Text(
+                    'Check Permit Status',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
             ],
           ),

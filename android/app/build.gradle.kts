@@ -23,10 +23,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.mershed"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -35,11 +32,17 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Default debug signing ka use karo
             signingConfig = signingConfigs.getByName("debug")
+            // R8 error se bachne ke liye minify disable karo
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
+}
+
+dependencies {
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 }
 
 flutter {
