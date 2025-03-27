@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:mershed/config/app_routes.dart';
 import 'navigation_transport_screen.dart';
 import 'chatbot_screen.dart';
+import 'settings_screen.dart'; // New import for SettingsScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // Track the selected bottom navigation item
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Text(
                         'Explore Services',
@@ -53,19 +54,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.brown.shade800,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          // Navigate to a screen listing all services
-                          Navigator.pushNamed(context, AppRoutes.allServices);
-                        },
-                        child: Text(
-                          'View All',
-                          style: TextStyle(
-                            color: accentColor,
-                            fontWeight: FontWeight.w500,
-                          ),
                         ),
                       ),
                     ],
@@ -261,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: IconButton(
                           icon: Icon(Icons.notifications_none, color: Colors.white),
                           onPressed: () {
-                            // Navigate to notifications screen
                             Navigator.pushNamed(context, AppRoutes.notifications);
                           },
                         ),
@@ -304,8 +291,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => _showProfileOptions(context),
                     child: CircleAvatar(
                       radius: 22,
-                      backgroundImage: NetworkImage(profileImage),
-                      onBackgroundImageError: (_, __) => AssetImage('assets/images/profile_placeholder.webp'),
+                      backgroundColor: Colors.white24, // Optional: add background color
+                      child: Icon(
+                        Icons.person, // Use person icon instead of image
+                        color: Colors.white, // Adjust color as needed
+                        size: 28, // Adjust size as needed
+                      ),
                     ),
                   );
                 },
@@ -332,15 +323,129 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
+
+        final fallbackName = 'Discover Saudi Arabia';
+        final fallbackLocation = 'Various Locations';
+        final fallbackRating = '4.5';
+        final fallbackImageUrl = 'assets/images/generic_destination.jpg';
+
         if (snapshot.hasError || !snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Container(
             margin: EdgeInsets.symmetric(horizontal: 24),
             height: size.height * 0.2,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              color: Colors.grey.shade200,
+              image: DecorationImage(
+                image: AssetImage(fallbackImageUrl),
+                fit: BoxFit.cover,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  offset: Offset(0, 5),
+                  blurRadius: 10,
+                ),
+              ],
             ),
-            child: Center(child: Text('No featured destination available')),
+            child: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.7),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Featured Destination',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        fallbackName,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 16,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            fallbackRating,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Icon(
+                            Icons.location_on,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            fallbackLocation,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 15,
+                  right: 15,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.search);
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFB94A2F).withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Explore',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         }
 
@@ -447,7 +552,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 right: 15,
                 child: GestureDetector(
                   onTap: () {
-                    // Navigate to a detailed destination screen
                     Navigator.pushNamed(
                       context,
                       AppRoutes.destinationDetail,
@@ -478,7 +582,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMenuCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap, {bool enabled = true}) {
+  Widget _buildMenuCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap,
+      {bool enabled = true}) {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
@@ -601,7 +706,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         switch (index) {
           case 0:
-          // Already on HomeScreen
             break;
           case 1:
             Navigator.pushNamed(context, AppRoutes.search);
@@ -666,14 +770,11 @@ class _HomeScreenState extends State<HomeScreen> {
             Divider(),
             _buildProfileOption(
               Icons.settings,
-              'Preferences',
-                  () => Navigator.pushNamed(context, AppRoutes.preferences),
-            ),
-            Divider(),
-            _buildProfileOption(
-              Icons.settings,
               'Settings',
-                  () => Navigator.pop(context),
+                  () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              ),
             ),
             Divider(),
             _buildProfileOption(

@@ -1,9 +1,10 @@
-// lib/ui/screens/saved_screen.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
-import 'package:mershed/core/providers/auth_provider.dart';
 import 'package:mershed/config/app_routes.dart';
+import 'package:mershed/core/models/trip.dart';
+import 'package:mershed/core/providers/auth_provider.dart';
+import 'package:mershed/core/providers/trip_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 
 class SavedScreen extends StatelessWidget {
   const SavedScreen({super.key});
@@ -11,99 +12,107 @@ class SavedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<MershadAuthProvider>(context);
+    final tripProvider = Provider.of<TripProvider>(context);
     final userId = authProvider.user?.id;
 
     if (userId == null && !authProvider.isGuest) {
       return const Scaffold(
-        body: Center(child: Text('Please log in to view saved destinations')),
+        body: Center(child: Text('Please log in to view saved trips')),
       );
+    }
+
+    // Fetch trips when the screen loads if not already fetched
+    if (tripProvider.trips.isEmpty && !tripProvider.isLoading) {
+      tripProvider.fetchTrips(userId!);
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Saved Destinations'),
+        title: const Text('Saved Trips'),
         backgroundColor: const Color(0xFFB94A2F),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('saved_destinations')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Consumer<TripProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return const Center(child: Text('Error loading saved destinations'));
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No saved destinations'));
+          if (provider.trips.isEmpty) {
+            return const Center(child: Text('No saved trips found'));
           }
 
-          final savedDestinations = snapshot.data!.docs;
+          final savedTrips = provider.trips;
 
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
-            itemCount: savedDestinations.length,
+            itemCount: savedTrips.length,
             itemBuilder: (context, index) {
-              final doc = savedDestinations[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final destinationId = data['destinationId'] ?? '';
-
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance
-                    .collection('destinations')
-                    .doc(destinationId)
-                    .get(),
-                builder: (context, destSnapshot) {
-                  if (destSnapshot.connectionState == ConnectionState.waiting) {
-                    return const ListTile(
-                      title: Text('Loading...'),
-                    );
-                  }
-                  if (destSnapshot.hasError || !destSnapshot.hasData || !destSnapshot.data!.exists) {
-                    return const ListTile(
-                      title: Text('Destination not found'),
-                    );
-                  }
-
-                  final destData = destSnapshot.data!.data() as Map<String, dynamic>;
-                  final name = destData['name'] ?? 'Unknown';
-                  final location = destData['location'] ?? 'Unknown';
-                  final rating = destData['rating']?.toDouble() ?? 0.0;
-
-                  return Card(
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: const Icon(Icons.location_on, color: Color(0xFFB94A2F)),
-                      title: Text(name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(location),
-                          Row(
-                            children: [
-                              const Icon(Icons.star, size: 16, color: Colors.amber),
-                              const SizedBox(width: 4),
-                              Text(rating.toString()),
-                            ],
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.destinationDetail,
-                          arguments: destinationId,
-                        );
-                      },
-                    ),
-                  );
-                },
-              );
+              final trip = savedTrips[index];
+              return _buildTripCard(context, trip);
             },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTripCard(BuildContext context, Trip trip) {
+    final theme = Theme.of(context);
+    final days = trip.endDate.difference(trip.startDate).inDays + 1;
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFB94A2F).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.flight_takeoff, color: Color(0xFFB94A2F)),
+        ),
+        title: Text(
+          trip.destination,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              '${DateFormat('MMM d').format(trip.startDate)} - ${DateFormat('MMM d, yyyy').format(trip.endDate)}',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.timer, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '$days ${days == 1 ? 'day' : 'days'}',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${trip.budget.toStringAsFixed(0)} SAR',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ],
+        ),
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            AppRoutes.tripDetail,
+            arguments: trip,
           );
         },
       ),

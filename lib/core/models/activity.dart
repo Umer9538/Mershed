@@ -1,31 +1,36 @@
 class Activity {
-  final String id;
-  final String name;
-  final String location;
-  final double cost;
-  String? bookingId;
+  String id;
+  String name;
+  String location;
+  double cost;
+  List<String>? photos;
+  List<String>? reviews;
+  String? _bookingId;
 
   Activity({
     required this.id,
     required this.name,
     required this.location,
     required this.cost,
-    this.bookingId,
+    this.photos,
+    this.reviews,
   });
 
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'name': name,
-    'location': location,
-    'cost': cost,
-    'bookingId': bookingId,
-  };
+  String? get bookingId => _bookingId;
 
-  factory Activity.fromMap(Map<String, dynamic> map) => Activity(
-    id: map['id'],
-    name: map['name'],
-    location: map['location'],
-    cost: map['cost'],
-    bookingId: map['bookingId'],
-  );
+  set bookingId(String? value) {
+    _bookingId = value;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'location': location,
+      'cost': cost,
+      'photos': photos,
+      'reviews': reviews,
+      'bookingId': _bookingId,
+    };
+  }
 }

@@ -1,31 +1,36 @@
 class Restaurant {
-  final String id;
-  final String name;
-  final String location;
-  final double averageCostPerPerson;
-  String? bookingId;
+  String id;
+  String name;
+  String location;
+  double cost;
+  List<String>? photos;
+  List<String>? reviews;
+  String? _bookingId;
 
   Restaurant({
     required this.id,
     required this.name,
     required this.location,
-    required this.averageCostPerPerson,
-    this.bookingId,
+    required this.cost,
+    this.photos,
+    this.reviews,
   });
 
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'name': name,
-    'location': location,
-    'averageCostPerPerson': averageCostPerPerson,
-    'bookingId': bookingId,
-  };
+  String? get bookingId => _bookingId;
 
-  factory Restaurant.fromMap(Map<String, dynamic> map) => Restaurant(
-    id: map['id'],
-    name: map['name'],
-    location: map['location'],
-    averageCostPerPerson: map['averageCostPerPerson'],
-    bookingId: map['bookingId'],
-  );
+  set bookingId(String? value) {
+    _bookingId = value;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'location': location,
+      'cost': cost,
+      'photos': photos,
+      'reviews': reviews,
+      'bookingId': _bookingId,
+    };
+  }
 }

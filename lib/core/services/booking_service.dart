@@ -13,6 +13,7 @@ class BookingService {
 
   final CollectionReference _bookingsCollection =
   FirebaseFirestore.instance.collection('bookings');
+  final CollectionReference _usersCollection = FirebaseFirestore.instance.collection('users');
 
   // Fetch hotels using Hotels.com Provider API
   Future<List<Hotel>> getHotels(String destination,
@@ -346,4 +347,192 @@ class BookingService {
       ),
     ];
   }
+  /////
+// Mock data for restaurants
+  List<Map<String, dynamic>> _getFallbackRestaurants(String destination) {
+    return [
+      {
+        'id': 'rest1',
+        'name': 'Tasty Bites',
+        'location': destination,
+        'price': 150.0,
+        'type': 'restaurants',
+        'photos': ['https://via.placeholder.com/300x200?text=Tasty+Bites+Restaurant'],
+        'description': 'A cozy restaurant offering local cuisine.',
+      },
+      {
+        'id': 'rest2',
+        'name': 'Spice Haven',
+        'location': destination,
+        'price': 200.0,
+        'type': 'restaurants',
+        'photos': ['https://via.placeholder.com/300x200?text=Spice+Haven+Restaurant'],
+        'description': 'Authentic flavors in a modern setting.',
+      },
+    ];
+  }
+
+  // Mock data for activities
+  List<Map<String, dynamic>> _getFallbackActivities(String destination) {
+    return [
+      {
+        'id': 'act1',
+        'name': 'Desert Safari',
+        'location': destination,
+        'price': 300.0,
+        'type': 'activities',
+        'photos': ['https://via.placeholder.com/300x200?text=Desert+Safari'],
+        'description': 'An adventurous ride through the dunes.',
+      },
+      {
+        'id': 'act2',
+        'name': 'City Tour',
+        'location': destination,
+        'price': 250.0,
+        'type': 'activities',
+        'photos': ['https://via.placeholder.com/300x200?text=City+Tour'],
+        'description': 'Explore the city’s landmarks.',
+      },
+    ];
+  }
+
+  // Fetch restaurants (mock implementation)
+  Future<List<Map<String, dynamic>>> getRestaurants(String destination) async {
+    try {
+      // Simulate an API call delay
+      await Future.delayed(Duration(seconds: 1));
+      return _getFallbackRestaurants(destination);
+    } catch (e) {
+      print('Error fetching restaurants: $e');
+      return _getFallbackRestaurants(destination);
+    }
+  }
+
+  // Fetch activities (mock implementation)
+  Future<List<Map<String, dynamic>>> getActivities(String destination) async {
+    try {
+      // Simulate an API call delay
+      await Future.delayed(Duration(seconds: 1));
+      return _getFallbackActivities(destination);
+    } catch (e) {
+      print('Error fetching activities: $e');
+      return _getFallbackActivities(destination);
+    }
+  }
+
+  // Book a restaurant or activity
+  Future<bool> bookItem({
+    required String itemId,
+    required String userId,
+    required String type, // 'restaurants' or 'activities'
+    required double totalPrice,
+    required String destination,
+    DateTime? date, // Optional for activities/restaurants
+  }) async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null || userId != currentUser.uid) {
+        throw Exception('Authentication mismatch');
+      }
+
+      final mockData = type == 'restaurants'
+          ? _getFallbackRestaurants(destination)
+          : _getFallbackActivities(destination);
+      final item = mockData.firstWhere((i) => i['id'] == itemId, orElse: () => {});
+
+      if (item.isEmpty) {
+        throw Exception('Item not found');
+      }
+
+      final bookingId = 'BOOK-${DateTime.now().millisecondsSinceEpoch}';
+      await _bookingsCollection.doc(bookingId).set({
+        'bookingId': bookingId,
+        'userId': userId,
+        'itemId': itemId,
+        'itemDetails': item,
+        'type': type,
+        'date': date != null ? Timestamp.fromDate(date) : null,
+        'totalPrice': totalPrice,
+        'status': 'confirmed',
+        'createdAt': Timestamp.now(),
+      });
+      print('Booking successful: $bookingId for $type');
+      // Add booking confirmation notification
+      await _usersCollection.doc(userId).collection('notifications').add({
+        'title': 'Booking Confirmed',
+        'message': 'Your $type booking for ${item['name']} is confirmed!',
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+        'type': 'booking',
+        'bookingId': bookingId,
+      });
+      print('Notification added for $type booking: $bookingId');
+      return true;
+    } catch (e) {
+      print('Error booking $type: $e');
+      return false;
+    }
+  }
+///////////
+
+
+
+// Inside BookingService class
+  List<Map<String, dynamic>> _getFallbackDestinations(String query) {
+    final destinations = [
+      {
+        'id': 'dest1',
+        'name': 'Riyadh',
+        'location': 'Riyadh, Saudi Arabia',
+        'rating': 4.5,
+        'type': 'destination',
+        'photos': ['https://via.placeholder.com/300x200?text=Riyadh+Destination'],
+        'description': 'The vibrant capital city of Saudi Arabia.',
+      },
+      {
+        'id': 'dest2',
+        'name': 'Jeddah',
+        'location': 'Jeddah, Saudi Arabia',
+        'rating': 4.7,
+        'type': 'destination',
+        'photos': ['https://via.placeholder.com/300x200?text=Jeddah+Destination'],
+        'description': 'A historic port city on the Red Sea.',
+      },
+      {
+        'id': 'dest3',
+        'name': 'Mecca',
+        'location': 'Mecca, Saudi Arabia',
+        'rating': 5.0,
+        'type': 'destination',
+        'photos': ['https://via.placeholder.com/300x200?text=Mecca+Destination'],
+        'description': 'The holiest city in Islam.',
+      },
+    ];
+
+    // Filter based on query (case-insensitive)
+    final filtered = destinations
+        .where((dest) =>
+    dest['name'].toString().toLowerCase().contains(query.toLowerCase()) ||
+        dest['location'].toString().toLowerCase().contains(query.toLowerCase()))
+        .toList();
+
+    // If no matches, return all destinations to ensure something is shown
+    final result = filtered.isNotEmpty ? filtered : destinations;
+    print('Filtered Destinations for query "$query": $result');
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>> getDestinations(String query) async {
+    try {
+      await Future.delayed(Duration(seconds: 1));
+      final result = _getFallbackDestinations(query);
+      print('Destinations fetched: $result');
+      return result;
+    } catch (e) {
+      print('Error fetching destinations: $e');
+      return _getFallbackDestinations(query);
+    }
+  }
+
 }
+

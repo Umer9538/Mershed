@@ -33,9 +33,21 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     setState(() {
       _messages.add({
         'sender': 'bot',
-        'message': 'Hello! I’m your travel assistant. How can I help you today?',
+        'message': 'Welcome to TravelGenie! I am your AI travel companion. What destination or travel advice can I help you with today?',
       });
     });
+  }
+
+  // New method to handle fallback responses
+  String _getFallbackResponse(String message) {
+    final List<String> fallbackResponses = [
+      'I apologize, but I am having trouble processing your request. Could you please rephrase that?',
+      'Hmm, my connection seems a bit spotty. Would you mind repeating your question?',
+      'It looks like there might be a temporary issue with my system. Let me suggest requesting human support if this persists.',
+    ];
+
+    // Pseudo-random selection of fallback response
+    return fallbackResponses[message.length % fallbackResponses.length];
   }
 
   Future<void> _sendMessage(String message) async {
@@ -44,7 +56,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     setState(() {
       _messages.add({'sender': 'user', 'message': message});
       _isLoading = true;
-      _messages.add({'sender': 'bot', 'message': 'Bot is typing...'});
+      _messages.add({'sender': 'bot', 'message': 'Generating response...'});
     });
 
     try {
@@ -72,6 +84,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         _isLoading = false;
       });
       _messageController.clear();
+      _focusNode.requestFocus();
     }
   }
 
@@ -99,7 +112,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       throw Exception('No internet connection');
     }
 
-    const apiKey = String.fromEnvironment('GEMINI_API_KEY');
+    final apiKey = dotenv.env['GEMINI_API_KEY'];
+    print('Loaded GEMINI_API_KEY: $apiKey'); // Debug
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('GEMINI_API_KEY is not set in the .env file');
+    }
+
     final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey';
     final headers = {
       'Content-Type': 'application/json',
@@ -108,7 +126,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       'contents': [
         {
           'parts': [
-            {'text': 'You are a travel assistant. Provide helpful and accurate travel advice. $message'}
+            {'text': 'You are a travel assistant. Provide travel advice without using markdown or asterisks. Format the response cleanly. $message'}
           ]
         }
       ],
@@ -123,14 +141,9 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         final response = await http.post(Uri.parse(url), headers: headers, body: body).timeout(Duration(seconds: 10));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          final botResponse = data['candidates'][0]['content']['parts'][0]['text'] ?? 'I’m not sure how to respond to that.';
+          final botResponse = data['candidates'][0]['content']['parts'][0]['text'] ?? 'I am not sure how to respond to that.';
           await _cacheResponse(message, botResponse);
           return botResponse;
-        } else if (response.statusCode == 429) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Rate limit exceeded. Please wait and try again.')),
-          );
-          throw Exception('Rate limit exceeded');
         } else {
           print('Gemini API Error: Status Code ${response.statusCode}, Response: ${response.body}');
           throw Exception('Failed to get response: ${response.statusCode}');
@@ -147,34 +160,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     throw Exception('Failed to get response after retries');
   }
 
-  String _getFallbackResponse(String message) {
-    final lowerMessage = message.toLowerCase();
-    if (lowerMessage.contains('hotel') && lowerMessage.contains('jeddah')) {
-      return 'I can suggest some hotels! For example, in Jeddah, you might like the Ritz-Carlton or Hilton Jeddah for a family stay.';
-    } else if (lowerMessage.contains('hotel') && lowerMessage.contains('riyadh')) {
-      return 'In Riyadh, you might enjoy staying at the Four Seasons or Kingdom Centre Tower Hotel.';
-    } else if (lowerMessage.contains('hotel') && lowerMessage.contains('mecca')) {
-      return 'In Mecca, you can try the Fairmont Makkah Clock Royal Tower or the Pullman ZamZam Makkah for a comfortable stay.';
-    } else if (lowerMessage.contains('transport') && lowerMessage.contains('mecca')) {
-      return 'For transport in Mecca, you can use the Haramain High-Speed Railway to travel to Medina, or take a SAPTCO bus.';
-    } else if (lowerMessage.contains('transport') && lowerMessage.contains('riyadh')) {
-      return 'In Riyadh, you can use the Riyadh Metro. For example, travel from King Saud University to Kingdom Centre Tower on Line 1.';
-    } else if (lowerMessage.contains('budget') && lowerMessage.contains('trip')) {
-      return 'For a budget trip, consider staying in hostels or budget hotels, and use public transport like buses or the metro to save money.';
-    } else if (lowerMessage.contains('places') && lowerMessage.contains('visit')) {
-      return 'In Saudi Arabia, you can visit Al Masjid Al Haram in Mecca, Al Masjid an-Nabawi in Medina, or the Kingdom Centre Tower in Riyadh.';
-    } else if (lowerMessage.contains('weather') && lowerMessage.contains('jeddah')) {
-      return 'Jeddah is usually warm and humid. Expect temperatures around 25-35°C year-round, with higher humidity near the coast.';
-    }
-    return 'I’m having trouble connecting to my knowledge base. Please try again or request human support!';
-  }
-
   Future<void> _requestHumanSupport() async {
     setState(() {
       _isHumanSupportRequested = true;
       _messages.add({
         'sender': 'bot',
-        'message': 'I’ve requested human support for you. Someone will assist you soon!',
+        'message': 'I have requested human support for you. Someone will assist you soon!',
       });
     });
 
@@ -205,78 +196,122 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Travel Chatbot'),
+
+        title: Row(
+          children: [
+            Icon(Icons.flight_takeoff, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text('TravelGenie', style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            )),
+          ],
+        ),
         actions: [
           if (!_isHumanSupportRequested)
-            IconButton(
-              icon: const Icon(Icons.support_agent),
-              onPressed: _isLoading ? null : _requestHumanSupport,
-              tooltip: 'Request Human Support',
+            Tooltip(
+              message: 'Need extra help? Connect with a human agent',
+              child: IconButton(
+                icon: Icon(Icons.support_agent, color: theme.colorScheme.primary),
+                onPressed: _isLoading ? null : _requestHumanSupport,
+              ),
             ),
         ],
+        backgroundColor: Color(0xFFB94A2F),
+        elevation: 1,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.surface,
+              theme.colorScheme.surface.withOpacity(0.9),
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16.0),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  final isBot = message['sender'] == 'bot';
+                  return Align(
+                    alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4.0),
+                      padding: const EdgeInsets.all(12.0),
+                      decoration: BoxDecoration(
+                        color: isBot
+                            ? theme.colorScheme.secondaryContainer
+                            : theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(16.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        message['message']!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isBot ? theme.colorScheme.onSecondaryContainer : theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
               padding: const EdgeInsets.all(16.0),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final isBot = message['sender'] == 'bot';
-                return Align(
-                  alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4.0),
-                    padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      focusNode: _focusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Ask me anything about your next adventure...',
+                        prefixIcon: Icon(Icons.search, color: theme.colorScheme.primary),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.0),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface,
+                      ),
+                      onSubmitted: _isLoading || _isHumanSupportRequested ? null : _sendMessage,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Container(
                     decoration: BoxDecoration(
-                      color: isBot ? Colors.grey[200] : theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(12.0),
+                      color: _isLoading || _isHumanSupportRequested
+                          ? theme.colorScheme.secondary.withOpacity(0.5)
+                          : theme.colorScheme.primary,
+                      shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      message['message']!,
-                      style: TextStyle(
-                        color: isBot ? Colors.black : Colors.white,
-                      ),
+                    child: IconButton(
+                      icon: _isLoading
+                          ? const CircularProgressIndicator(strokeWidth: 2)
+                          : Icon(Icons.send, color: theme.colorScheme.onPrimary),
+                      onPressed: _isLoading || _isHumanSupportRequested
+                          ? null
+                          : () => _sendMessage(_messageController.text),
                     ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    focusNode: _focusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Ask me anything about travel...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      filled: true,
-                      fillColor: theme.colorScheme.surface,
-                    ),
-                    onSubmitted: _isLoading || _isHumanSupportRequested ? null : _sendMessage,
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-                IconButton(
-                  icon: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Icon(Icons.send),
-                  onPressed: _isLoading || _isHumanSupportRequested
-                      ? null
-                      : () => _sendMessage(_messageController.text),
-                  color: theme.colorScheme.primary,
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
