@@ -57,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: theme.colorScheme.background,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFFB94A2F),
+        backgroundColor: const Color(0xFF40557b),
         title: const Text(
           'Your Profile',
           style: TextStyle(

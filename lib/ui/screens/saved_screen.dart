@@ -29,7 +29,7 @@ class SavedScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saved Trips'),
-        backgroundColor: const Color(0xFFB94A2F),
+        backgroundColor: const Color(0xFF40557b),
       ),
       body: Consumer<TripProvider>(
         builder: (context, provider, child) {

@@ -26,7 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
-    final primaryColor = Color(0xFFB94A2F);
+    //final primaryColor = Color(0xFFB94A2F);
+    final primaryColor = Color(0xFF40557b);
     final accentColor = Color(0xFF3C896D);
     final backgroundColor = Color(0xFFF7EFE4);
     final authProvider = Provider.of<MershadAuthProvider>(context);

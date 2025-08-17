@@ -46,7 +46,7 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/mershed_logo.png"
+  image_path: "assets/images/app_logo.jpg"
 
 flutter:
   uses-material-design: true
